@@ -1,0 +1,42 @@
+---
+output:
+  html_document:
+    latex_engine: xelatex
+mainfont: Times New Roman
+monofont: inconsolata
+---
+
+```{r, results = "asis", echo = FALSE}
+pl_name <- str_replace_all(string = drb$playlist[1], "_", replacement = "\\\\_")
+vt_path <- paste0("VoiceTrack = ../Nipper/studiomontage/", pl_name, "/", drb$playlist_id[1], "\\_")
+
+cat("#Draaiboek: ", pl_name)
+cat("  \n")
+cat("  \n")
+# cat("\\<Pres+Tech> Tune en Uitzending-Aan kun je _overslaan_.") 
+cat("  \n") 
+cat("\n") 
+
+sav_blok <- ""
+
+for (i1 in 1:nrow(drb)) {
+  
+  if (drb$vt_blok_letter[i1] != sav_blok) {
+    sav_blok <- drb$vt_blok_letter[i1]
+    cat("------------------------------------------------------------------------------------------------  <BR/><BR/>")  
+    cat(vt_path, drb$vt_blok_letter[i1], ".aif  \n\n", sep = "") 
+    cat("##Blok ", drb$vt_blok_letter[i1], ", ", drb$bloklengte_hms[i1], "  (", drb$cum_lengte[i1], ")  \n", sep = "") 
+  }
+
+  cat("- track ", drb$vt_blok_nr[i1], "  \n") 
+  cat(drb$componist_lbl[i1], ": ", drb$titel[i1], "  \n") 
+  cat("(", drb$tijdvak[i1], ", ", drb$nationaliteit[i1], ")", sep = "") 
+  cat("  \n") 
+  cat("Uitgevoerd door :", drb$uitvoerenden[i1], "  \n") 
+  cat("CD: ", drb$album[i1], "  \n") 
+  cat("\n") 
+}
+
+cat(vt_path, "slot.aif  \n\n", sep = "") 
+cat("------------------------------------------------------------------------------------------------  <BR/><BR/>")  
+```
