@@ -5,23 +5,30 @@
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # Init
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-library(tidyr)
-library(knitr)
-library(rmarkdown)
-library(googlesheets)
-library(RCurl)
-library(yaml)
-library(magrittr)
-library(stringr)
-library(dplyr)
-library(purrr)
-library(lubridate)
-library(fs)
-library(readr)
-library(futile.logger)
-library(keyring)
-library(RMySQL)
-library(officer)
+suppressWarnings(suppressPackageStartupMessages(library(knitr)))
+suppressWarnings(suppressPackageStartupMessages(library(rmarkdown)))
+suppressWarnings(suppressPackageStartupMessages(library(RCurl)))
+suppressWarnings(suppressPackageStartupMessages(library(readr)))
+suppressWarnings(suppressPackageStartupMessages(library(futile.logger)))
+suppressWarnings(suppressPackageStartupMessages(library(DBI)))
+suppressWarnings(suppressPackageStartupMessages(library(officer)))
+suppressWarnings(suppressPackageStartupMessages(library(httr)))
+suppressWarnings(suppressPackageStartupMessages(library(xml2)))
+suppressWarnings(suppressPackageStartupMessages(library(tidyverse)))
+suppressWarnings(suppressPackageStartupMessages(library(keyring)))
+suppressWarnings(suppressPackageStartupMessages(library(googlesheets4)))
+suppressWarnings(suppressPackageStartupMessages(library(yaml)))
+suppressWarnings(suppressPackageStartupMessages(library(fs)))
+suppressWarnings(suppressPackageStartupMessages(library(magrittr)))
+suppressWarnings(suppressPackageStartupMessages(library(hms)))
+suppressWarnings(suppressPackageStartupMessages(library(lubridate)))
+suppressWarnings(suppressPackageStartupMessages(library(zip)))
+suppressWarnings(suppressPackageStartupMessages(library(stringr)))
+# suppressWarnings(suppressPackageStartupMessages(library(RMySQL)))
+
+
+config <- read_yaml("config_nip_nxt.yaml")
+
 
 filter <- dplyr::filter # voorkom verwarring met stats::filter
 
@@ -32,13 +39,14 @@ home_prop <- function(prop) {
     str_replace_all(pattern = "\\%2F", replacement = "/")
 }
 
-flog.appender(appender.file("/Users/nipper/Logs/nipper.log"), name = "nipperlog")
-flog.info("= = = = = NIPPER start = = = = =", name = "nipperlog")
-
-config <- read_yaml("config.yaml")
+fa <- flog.appender(appender.file("c:/Users/gergiev/Logs/nipper.log"), name = "nipperlog")
+flog.info("= = = = = NipperNext start = = = = =", name = "nipperlog")
 
 source(config$toolbox, encoding = "UTF-8")
 
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+# Init
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 host <- config$host
 home_vt_audio_mac <- home_prop("home_vt_audio_mac")
 home_vt_audio_win  <- home_prop("home_vt_audio_win") %>% 
@@ -48,39 +56,32 @@ home_fonotheek <- home_prop("home_fonotheek")
 switch_home <- paste0(home_prop("home_schedulerswitch"), "/nipper_msg.txt")
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-# Stop RL-scheduler op de mac en wacht 5 seconden - stoppen duurt soms even
+# Nipper Next spreadsheet op GD openen, na aanmelden bij Google
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-flog.info("RL-scheduler stoppen", name = "nipperlog")
-switch <- read_lines(file = switch_home)
-switch <- "stop RL-scheduler"
-write_lines(switch, path = switch_home, append = FALSE)
+gs4_auth(email = "cz.teamservice@gmail.com")
 
-Sys.sleep(time = 5)
-flog.info("RL-scheduler is gestopt", name = "nipperlog")
-
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-# Nipper Express spreadsheet op GD openen
-# NB!! zonodig: change to new user; er opent een browser dialogue
-#               gs_auth(new_user = TRUE)
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-gd_nip_xpr <- gs_title(config$nip_xpr_gd_reg)
+gd_nip_nxt_pl <- read_sheet(ss = config$url_nipper_next, sheet = "playlists")
+gd_nip_nxt_sel_raw <- read_sheet(ss = config$url_nipper_next, sheet = "nipper-select")
+gd_nip_nxt_sel <- gd_nip_nxt_sel_raw %>% 
+  filter(!is.na(lengte)) %>% 
+  mutate(lengte_sec = 3600 * hour(lengte) + 60 * minute(lengte) + second(lengte),
+         lengte_hms = as_hms(lengte)) %>% 
+  select(-lengte)
+gd_nip_nxt_muw <- read_sheet(ss = config$url_nipper_next, sheet = "muziekweb")
 
 for (seg1 in 1:1) { # zorgt voor een script-segment dat met "break" verlaten kan worden
 
   # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
   # Kijk in werkblad "playlists" welke nieuwe playlists er moeten komen
   # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-  pl_nieuw <- gd_nip_xpr %>% 
-    gs_read(ws = "playlists") %>% 
-    filter(is.na(samengesteld_op), !is.na(playlist))
+  pl_nieuw <- gd_nip_nxt_pl %>% filter(gereed == T & afgeleverd_op == "NULL")
   
   # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
   # Haal de werken op 
   # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-  pl_werken <- gd_nip_xpr %>% 
-    gs_read(ws = "nipper-select") %>% 
+  pl_werken <- gd_nip_nxt_sel %>% 
     filter(playlist %in% pl_nieuw$playlist) %>% 
-    filter(!is.na(keuze)) %>% 
+    filter(keuze == T) %>% 
     # splits de voice-tracking blokken in letter en volgnummer, om bij sorteren te verhinderen 
     # dat blok A10 meteen na blok A1 komt
     mutate(vt_blok_letter = str_sub(vt_blok, start = 1, end = 1), 
@@ -92,10 +93,10 @@ for (seg1 in 1:1) { # zorgt voor een script-segment dat met "break" verlaten kan
   # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
   # Alleen playlists maken waar ook echt wat in staat
   # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-  pl_nieuw %<>% filter(playlist %in% pl_werken$playlist) %>% 
+  pl_nieuw.1 <- pl_nieuw %>% filter(playlist %in% pl_werken$playlist) %>% 
     select(playlist_id, playlist, programma, start, anchor)
   
-  if(nrow(pl_nieuw) == 0){
+  if(nrow(pl_nieuw.1) == 0){
     flog.info("Er zijn geen nieuwe playlists", name = "nipperlog")
     break
   }
@@ -137,10 +138,7 @@ for (seg1 in 1:1) { # zorgt voor een script-segment dat met "break" verlaten kan
   # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
   pl_duur <- pl_werken %>% 
     group_by(playlist, vt_blok_letter) %>% 
-    summarise(blokduur = sum(lengte)) %>% 
-    # blokduur omzetten in seconden: seconds(hms = 00:05:00) = 300S
-    #                                as.integer(300S) = 300
-    mutate(blokduur_sec = as.integer(seconds(blokduur))) %>% 
+    summarise(blokduur_sec = sum(lengte_sec)) %>% 
     group_by(playlist) %>% 
     summarise(blokken = n(),
               muzieklengte = sum(blokduur_sec)) %>% 
@@ -162,26 +160,53 @@ for (seg1 in 1:1) { # zorgt voor een script-segment dat met "break" verlaten kan
   # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
   # Haal de tracks op
   # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-  nipper_tracks <- readRDS("resources/nipper_tracks.rds") %>% distinct
+  df_albums_and_tracks_file <- "C:/Users/gergiev/cz_rds_store/df_albums_and_tracks_all.RDS"
+  df_albums_and_tracks_all <- read_rds(df_albums_and_tracks_file)
+  
+  # df_albums_and_tracks.1 <- gd_albums_and_tracks(pl_nieuw) 
+  
+  # df_albums_and_tracks.2 <- df_albums_and_tracks.1 %>% 
+  # df_albums_and_tracks.2 <- pl_werken %>% 
+  #   select(playlist, opnameNr) %>% inner_join(df_albums_and_tracks_all, 
+  #                                             by = c("opnameNr" = "album_key")) %>% 
+  #   select(playlist, muw_album_id, muw_track)
+  
+  # nipper_tracks <- readRDS("resources/nipper_tracks.rds") %>% distinct()
   
   pl_tracks <- pl_werken %>% 
     select(playlist, vt_blok_letter, vt_blok_nr, opnameNr) %>% 
-    left_join(., nipper_tracks, by = "opnameNr") %>% 
-    mutate(uzm_locatie = curlEscape(uzm_locatie),
-           uzm_locatie = paste0(home_fonotheek, uzm_locatie),
-           uzm_locatie = str_replace_all(uzm_locatie, pattern = "\\%2F", replacement = "/"))
-           
-  # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-  # RL-playlist samenstellen
-  # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-  programma_sleutels <- gd_nip_xpr %>% gs_read(ws = "programma_sleutels")
-  
-  audio_locaties <- gd_nip_xpr %>% gs_read(ws = "audio_locaties")
+    left_join(df_albums_and_tracks_all, by =  c("opnameNr" = "album_key")) %>% 
+    mutate(uzm_locatie = paste0("//Volumes/Avonden/Nipper/muziekweb_audio/",
+                                muw_album_id,
+                                "-",
+                                str_pad(muw_track, width = 4, side = "left", pad = "0"),
+                                ".wav"))
 
-  source("src/compile_schedulerscript.R", encoding = "UTF-8")
+  # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+  # RL-programs samenstellen
+  # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+  programma_sleutels <- read_sheet(ss = config$url_nipper_next, sheet = "programma_sleutels")
+  
+  audio_locaties <- read_sheet(ss = config$url_nipper_next, sheet = "audio_locaties")
+  
+  # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+  # Stop RL-scheduler op de mac en wacht 5 seconden - stoppen duurt soms even
+  # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+  flog.info("RL-scheduler stoppen", name = "nipperlog")
+  switch <- read_lines(file = switch_home)
+  switch <- "stop RL-scheduler"
+  write_lines(switch, file = switch_home, append = FALSE)
+  
+  Sys.sleep(time = 5)
+  flog.info("RL-scheduler is gestopt", name = "nipperlog")
+  
+  source("src/compile_schedulerscript.R", encoding = "UTF-8") # bevat alleen functies
+  source("src/shared_functions.R", encoding = "UTF-8") # bevat alleen functies
   
   for (cur_pl in pl_nieuw$playlist) {
-    # cur_pl <- "20190215_vr07.180_ochtendeditie"
+    ### TEST
+    # cur_pl <- "20220328_ma07.180_ochtendeditie"
+    ### TEST
     duration_rlprg <- 3600L * as.numeric(str_sub(cur_pl, 15, 17)) / 60L
     
     cur_duur <- pl_duur %>% filter(playlist == cur_pl) %>% 
@@ -227,14 +252,16 @@ for (seg1 in 1:1) { # zorgt voor een script-segment dat met "break" verlaten kan
         left_join(., pl_werken, by = c("playlist", "vt_blok_letter", "vt_blok_nr")) %>% 
         mutate(
           duur = "",
-          audiofile = paste0("file://", uzm_locatie),
+          audiofile = paste0("file:/", uzm_locatie),
           const_false = "FALSE",
           start_sec_sinds_middernacht = -1, # "direct erna afspelen"
           fwdtab1 = "",
           fwdtab2 = "",
           fwdtab3 = "",
-          speler_regel01 = componist_lbl,
-          opname_hfd_sub = paste0(opnameNr.x, "-", opnameVlgNr),
+          speler_regel01 = componist,
+          opname_hfd_sub = paste0(cur_pl_nieuw$playlist_id[[1]], 
+                                  "-", 
+                                  vt_blok_letter, vt_blok_nr),
           speler_regel02 = titel
         ) %>% 
         select(duur, audiofile, const_false, start_sec_sinds_middernacht, 
@@ -252,7 +279,7 @@ for (seg1 in 1:1) { # zorgt voor een script-segment dat met "break" verlaten kan
     write.table(x = rlprg_file, file = rlprg_file_name, row.names = FALSE, col.names = FALSE, 
                 sep = "\t", quote = FALSE, fileEncoding = "UTF-8") 
     
-    flog.info("RL-playlist toegevoegd: %s", rlprg_file_name, name = "nipperlog")
+    flog.info("RL-program toegevoegd: %s", rlprg_file_name, name = "nipperlog")
     
     # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
     # scheduler-script samenstellen
@@ -260,33 +287,116 @@ for (seg1 in 1:1) { # zorgt voor een script-segment dat met "break" verlaten kan
     build_rl_script(cur_pl)
     
     flog.info("RL-schedulerscript toegevoegd voor %s", cur_pl, name = "nipperlog")
+    
+    #+ RL-scripts to play recycled OE's ----
+    # For this, 'build_rl_script' needs 2 arguments: a playlist A, having the
+    # required play date; and a playlist B, having the OE-episode to be
+    # recycled. Playlist A will be artificial, as there is no GD-selection for
+    # it.
+    
+    for (seg_oe_a in 1:1) {
+      # !TEST! # cur_pl <- "20200106_ma07-180_ochtendeditie"
+      
+      if (!str_detect(string = cur_pl, pattern = "_ochtendeditie")) {
+        break
+      }
+      
+      #+ . set dummy pl_name ----
+      # required play date is cur_pl_date + 7 days.
+      cur_pl_date <- playlist2postdate(cur_pl)
+      stamped_format <- stamp("20191229_zo", orders = "%Y%0m%d_%a")
+      dummy_pl <- paste0(stamped_format(cur_pl_date + days(7L)),
+                         "07-180_ochtendeditie")
+      
+      #+ . set OE-episode pl_name ----
+      # details are on GD: kringloopherhalingen ochtendeditie
+      oe_offset <-
+        case_when(
+          cur_pl_date >= ymd_hms("2020-06-22 07:00:00", tz = "Europe/Amsterdam") ~ 175L,
+          str_detect(string = cur_pl, pattern = "_(ma|di|wo|do)\\d") ~ 175L,
+          TRUE                                                       ~ 182L
+        )
+      
+      oe_pl <-
+        paste0(stamped_format(cur_pl_date + days(7L) - days(oe_offset)),
+               "07-180_ochtendeditie")
+      
+      oe_pl_set <- c(dummy_pl, oe_pl)
+      build_rl_script(oe_pl_set)
+      flog.info("RL-schedulerscript toegevoegd voor OE-herh: %s", dummy_pl, name = "nipperlog")
+    }
   }
-
+  
+  # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+  # Herstart RL-scheduler op de mac, zodat de nieuwe scripts ingelezen worden
+  # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+  switch <- read_lines(file = switch_home)
+  switch <- "start RL-scheduler"
+  write_lines(switch, file = switch_home, append = FALSE)
+  flog.info("RL-scheduler draait weer", name = "nipperlog")
+  
   # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
   # Draaiboeken en gids samenstellen
   # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+  flog.info("Draaiboeken maken...", name = "nipperlog")
   source("src/compile_hostscript_docx.R", encoding = "UTF-8")  
+  flog.info("Gids bijwerken...", name = "nipperlog")
   source("src/update_gids.R", encoding = "UTF-8")
   
   # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-  # Nieuwe playlists afstempelen met aanmaakdatum. gs_edit_cells zou dat in 1 keer kunnen doen, mits de
-  # rijen 1 aaneengesloten blok vormen - wat niet per se zo is bij nieuwe playlists in het GD-tabblad
+  # Muziekweb-audio verplaatsen en uitpakken
   # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-  pl_anchor <- pl_nieuw %>% select(anchor)
-  samengesteld_op <- today(tzone = "Europe/Amsterdam")
+  flog.info("Muziekweb-audio verplaatsen en uitpakken...", name = "nipperlog")
+  muw_zips <- dir_ls(path = "C:/Users/gergiev/Downloads/", 
+                     recurse = F, 
+                     regexp = "^Bestelling#.+\\.zip$") %>% as_tibble() %>% rename(zip_name = value)
   
-  for (a1 in 1:nrow(pl_nieuw)) {
-    cur_anchor <- pl_anchor[a1, ] %>% as.character
-    gs_edit_cells(gd_nip_xpr, ws = "playlists", anchor = cur_anchor, input = samengesteld_op)
+  if (nrow(muw_zips) == 0) {
+    flog.info("Geen nieuwe Muziekweb-zips aangetroffen.", name = "nipperlog")
+  } else {
+    for (a_zip in muw_zips$zip_name) {
+      ### TEST ###
+      # a_zip = "C:/Users/gergiev/Downloads/Bestelling#1562-D2CA3BF6.zip"
+      ### TEST ###
+      flog.info("Verplaats nieuwe Muziekweb-zip naar UZM en pak uit: %s",
+                a_zip,
+                name = "nipperlog")
+      file_move(a_zip, "u:/Nipper/muziekweb_audio/")
+      uzm_zip <-
+        str_replace(a_zip, pattern = "C:/Users/gergiev/Downloads/", "U:/Nipper/muziekweb_audio/")
+      uzm_zip_done <- paste0(uzm_zip, ".done")
+      unzip(uzm_zip, exdir = "U:/Nipper/muziekweb_audio")
+      file_move(uzm_zip, uzm_zip_done)
+    }
   }
+  
+  # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+  # Meld de nieuwe spullenboel als "afgeleverd".
+  # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+  ### TEST
+  # gd_nip_nxt_pl_tst <- read_sheet(ss = "1opszI9cZi-vLnNp-0vcv2mfzX7Pv9q80nfZYcaVtq2U", sheet = "playlists")
+  ### TEST
+  df_afgeleverd_op <- gd_nip_nxt_pl %>%  
+    filter(str_detect(playlist_id, "NN")) %>% 
+    select(playlist_id, gereed, afgeleverd_op)
+  
+  df_afgeleverd_op$afgeleverd_op <- na_if(df_afgeleverd_op$afgeleverd_op, "NULL")
+
+  df_afgeleverd_op.1 <- df_afgeleverd_op %>%
+    mutate(afgeleverd_op_upd = if_else(
+      gereed == T &
+        is.na(afgeleverd_op),
+      now(tzone = "Europe/Amsterdam") + hours(1),
+      as_datetime(unlist(afgeleverd_op), origin = "1970-01-01")
+    )) %>% select(afgeleverd_op_upd)
+
+  range_write(ss = config$url_nipper_next,
+              data = df_afgeleverd_op.1,
+              sheet = "playlists",
+              range = "S3",
+              col_names = F,
+              reformat = F)
+  
 }
 
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-# Start RL-scheduler op de mac, zodat de nieuwe scripts ingelezen worden
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-switch <- read_lines(file = switch_home)
-switch <- "start RL-scheduler"
-write_lines(switch, path = switch_home, append = FALSE)
-flog.info("RL-scheduler draait weer", name = "nipperlog")
-
-flog.info("= = = = = NIPPER stop = = = = =", name = "nipperlog")
+flog.info("= = = = = NipperNext stop = = = = =", name = "nipperlog")
