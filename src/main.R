@@ -40,7 +40,6 @@ home_prop <- function(prop) {
 }
 
 fa <- flog.appender(appender.file("c:/Users/gergiev/Logs/nipper.log"), name = "nipperlog")
-flog.info("= = = = = NipperNext start = = = = =", name = "nipperlog")
 
 source(config$toolbox, encoding = "UTF-8")
 
@@ -75,6 +74,9 @@ for (seg1 in 1:1) { # zorgt voor een script-segment dat met "break" verlaten kan
   # Kijk in werkblad "playlists" welke nieuwe playlists er moeten komen
   # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
   pl_nieuw <- gd_nip_nxt_pl %>% filter(gereed == T & afgeleverd_op == "NULL")
+  ### TEST
+  # gd_nip_nxt_pl_tst <- read_sheet(ss = "1opszI9cZi-vLnNp-0vcv2mfzX7Pv9q80nfZYcaVtq2U", sheet = "playlists")
+  ### TEST
   
   # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
   # Haal de werken op 
@@ -96,10 +98,36 @@ for (seg1 in 1:1) { # zorgt voor een script-segment dat met "break" verlaten kan
   pl_nieuw.1 <- pl_nieuw %>% filter(playlist %in% pl_werken$playlist) %>% 
     select(playlist_id, playlist, programma, start, anchor)
   
-  if(nrow(pl_nieuw.1) == 0){
-    flog.info("Er zijn geen nieuwe playlists", name = "nipperlog")
+  if (nrow(pl_nieuw.1) == 0) {
     break
   }
+  
+  flog.info("= = = = = NipperNext start = = = = =", name = "nipperlog")
+  
+  # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+  # Meld de nieuwe spullenboel als "afgeleverd".
+  # Dat lijkt te vroeg, maar is gedaan om te voorkomen dat een playlist meer dan eens wordt opgepakt
+  # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+  df_afgeleverd_op <- gd_nip_nxt_pl %>%  
+    filter(str_detect(playlist_id, "NN")) %>% 
+    select(playlist_id, gereed, afgeleverd_op)
+  
+  df_afgeleverd_op$afgeleverd_op <- na_if(df_afgeleverd_op$afgeleverd_op, "NULL")
+  
+  df_afgeleverd_op.1 <- df_afgeleverd_op %>%
+    mutate(afgeleverd_op_upd = if_else(
+      gereed == T &
+        is.na(afgeleverd_op),
+      now(tzone = "Europe/Amsterdam") + hours(1),
+      as_datetime(unlist(afgeleverd_op), origin = "1970-01-01")
+    )) %>% select(afgeleverd_op_upd)
+  
+  range_write(ss = config$url_nipper_next,
+              data = df_afgeleverd_op.1,
+              sheet = "playlists",
+              range = "S3",
+              col_names = F,
+              reformat = F)
   
   # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
   # Alleen playlists maken als alle blokken uniek genummerd zijn en er geen ontbreekt
@@ -346,57 +374,30 @@ for (seg1 in 1:1) { # zorgt voor een script-segment dat met "break" verlaten kan
   # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
   # Muziekweb-audio verplaatsen en uitpakken
   # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-  flog.info("Muziekweb-audio verplaatsen en uitpakken...", name = "nipperlog")
-  muw_zips <- dir_ls(path = "C:/Users/gergiev/Downloads/", 
-                     recurse = F, 
-                     regexp = "^Bestelling#.+\\.zip$") %>% as_tibble() %>% rename(zip_name = value)
+  # flog.info("Muziekweb-audio verplaatsen en uitpakken...", name = "nipperlog")
+  # muw_zips <- dir_ls(path = "C:/Users/gergiev/Downloads/", 
+  #                    recurse = F, 
+  #                    regexp = "Bestelling.+\\.zip$") %>% as_tibble() %>% rename(zip_name = value)
+  # 
+  # if (nrow(muw_zips) == 0) {
+  #   flog.info("Geen nieuwe Muziekweb-zips aangetroffen.", name = "nipperlog")
+  # } else {
+  #   for (a_zip in muw_zips$zip_name) {
+  #     ### TEST ###
+  #     # a_zip = "C:/Users/gergiev/Downloads/Bestelling#1562-D2CA3BF6.zip"
+  #     ### TEST ###
+  #     flog.info("Verplaats nieuwe Muziekweb-zip naar UZM: %s",
+  #               a_zip,
+  #               name = "nipperlog")
+  #     file_move(a_zip, "u:/Nipper/muziekweb_audio/")
+  #     # uzm_zip <-
+  #     #   str_replace(a_zip, pattern = "C:/Users/gergiev/Downloads/", "U:/Nipper/muziekweb_audio/")
+  #     # uzm_zip_done <- paste0(uzm_zip, ".done")
+  #     # unzip(uzm_zip, exdir = "U:/Nipper/muziekweb_audio")
+  #     # file_move(uzm_zip, uzm_zip_done)
+  #   }
+  # }
   
-  if (nrow(muw_zips) == 0) {
-    flog.info("Geen nieuwe Muziekweb-zips aangetroffen.", name = "nipperlog")
-  } else {
-    for (a_zip in muw_zips$zip_name) {
-      ### TEST ###
-      # a_zip = "C:/Users/gergiev/Downloads/Bestelling#1562-D2CA3BF6.zip"
-      ### TEST ###
-      flog.info("Verplaats nieuwe Muziekweb-zip naar UZM en pak uit: %s",
-                a_zip,
-                name = "nipperlog")
-      file_move(a_zip, "u:/Nipper/muziekweb_audio/")
-      uzm_zip <-
-        str_replace(a_zip, pattern = "C:/Users/gergiev/Downloads/", "U:/Nipper/muziekweb_audio/")
-      uzm_zip_done <- paste0(uzm_zip, ".done")
-      unzip(uzm_zip, exdir = "U:/Nipper/muziekweb_audio")
-      file_move(uzm_zip, uzm_zip_done)
-    }
-  }
-  
-  # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-  # Meld de nieuwe spullenboel als "afgeleverd".
-  # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-  ### TEST
-  # gd_nip_nxt_pl_tst <- read_sheet(ss = "1opszI9cZi-vLnNp-0vcv2mfzX7Pv9q80nfZYcaVtq2U", sheet = "playlists")
-  ### TEST
-  df_afgeleverd_op <- gd_nip_nxt_pl %>%  
-    filter(str_detect(playlist_id, "NN")) %>% 
-    select(playlist_id, gereed, afgeleverd_op)
-  
-  df_afgeleverd_op$afgeleverd_op <- na_if(df_afgeleverd_op$afgeleverd_op, "NULL")
-
-  df_afgeleverd_op.1 <- df_afgeleverd_op %>%
-    mutate(afgeleverd_op_upd = if_else(
-      gereed == T &
-        is.na(afgeleverd_op),
-      now(tzone = "Europe/Amsterdam") + hours(1),
-      as_datetime(unlist(afgeleverd_op), origin = "1970-01-01")
-    )) %>% select(afgeleverd_op_upd)
-
-  range_write(ss = config$url_nipper_next,
-              data = df_afgeleverd_op.1,
-              sheet = "playlists",
-              range = "S3",
-              col_names = F,
-              reformat = F)
-  
+  flog.info("= = = = = NipperNext stop = = = = =", name = "nipperlog")
 }
 
-flog.info("= = = = = NipperNext stop = = = = =", name = "nipperlog")
