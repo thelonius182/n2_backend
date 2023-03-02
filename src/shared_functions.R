@@ -32,7 +32,7 @@ get_wp_conn <- function() {
   # db_env <- "wpdev_mariadb"
   ### TEST
   
-  flog.appender(appender.file("C:/Users/gergiev/Logs/nipper.log"), name = "nipperlog")
+  flog.appender(appender.file("C:/Users/gergiev/Logs/nipper_uzm_two.log"), name = "nipperlog")
   
   result <- tryCatch( {
     grh_conn <- dbConnect(odbc::odbc(), db_env, timeout = 10)

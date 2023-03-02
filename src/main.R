@@ -39,9 +39,9 @@ home_prop <- function(prop) {
     str_replace_all(pattern = "\\%2F", replacement = "/")
 }
 
-fa <- flog.appender(appender.file("c:/Users/gergiev/Logs/nipper.log"), name = "nipperlog")
+fa <- flog.appender(appender.file("c:/Users/gergiev/Logs/nipper_uzm_two.log"), name = "nipperlog")
 
-source(config$toolbox, encoding = "UTF-8")
+source(config$toolbox, encoding = "UTF-8") # functions only
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 # Init
@@ -50,9 +50,8 @@ host <- config$host
 home_vt_audio_mac <- home_prop("home_vt_audio_mac")
 home_vt_audio_win  <- home_prop("home_vt_audio_win") %>% 
   str_replace_all(pattern = "%20", replacement = " ")
-home_radiologik <- home_prop("home_radiologik")
-home_fonotheek <- home_prop("home_fonotheek")
-switch_home <- paste0(home_prop("home_schedulerswitch"), "/nipper_msg.txt")
+home_radiologik <- home_prop("home_radiologik_win")
+switch_home <- paste0(home_prop("home_schedulerswitch"), "nipper_msg.txt")
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 # Nipper Next spreadsheet op GD openen, na aanmelden bij Google
@@ -74,7 +73,9 @@ for (seg1 in 1:1) { # zorgt voor een script-segment dat met "break" verlaten kan
   # Kijk in werkblad "playlists" welke nieuwe playlists er moeten komen
   # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
   pl_nieuw <- gd_nip_nxt_pl %>% filter(gereed == T & afgeleverd_op == "NULL")
+  
   ### TEST
+  # pl_nieuw <- gd_nip_nxt_pl %>% filter(anchor == "M17")
   # gd_nip_nxt_pl_tst <- read_sheet(ss = "1opszI9cZi-vLnNp-0vcv2mfzX7Pv9q80nfZYcaVtq2U", sheet = "playlists")
   ### TEST
   
@@ -204,7 +205,7 @@ for (seg1 in 1:1) { # zorgt voor een script-segment dat met "break" verlaten kan
   pl_tracks <- pl_werken %>% 
     select(playlist, vt_blok_letter, vt_blok_nr, opnameNr) %>% 
     left_join(df_albums_and_tracks_all, by =  c("opnameNr" = "album_key")) %>% 
-    mutate(uzm_locatie = paste0("//Volumes/Avonden/Nipper/muziekweb_audio/",
+    mutate(uzm_locatie = paste0("//Volumes/Data/Nipper/muziekweb_audio/",
                                 muw_album_id,
                                 "-",
                                 str_pad(muw_track, width = 4, side = "left", pad = "0"),
@@ -233,7 +234,7 @@ for (seg1 in 1:1) { # zorgt voor een script-segment dat met "break" verlaten kan
   
   for (cur_pl in pl_nieuw$playlist) {
     ### TEST
-    # cur_pl <- "20220328_ma07.180_ochtendeditie"
+    # cur_pl <- "20220602_do11.060_onbekend_onbemind"
     ### TEST
     duration_rlprg <- 3600L * as.numeric(str_sub(cur_pl, 15, 17)) / 60L
     
@@ -302,7 +303,7 @@ for (seg1 in 1:1) { # zorgt voor een script-segment dat met "break" verlaten kan
     cur_pl %<>% str_replace_all(pattern = "[.]", replacement = "-")
     
     # zet de playlist in de programs-map van RL
-    home_radiologik_playlists <- paste0(home_prop("home_radiologik"), "Programs/")
+    home_radiologik_playlists <- paste0(home_prop("home_radiologik_win"), "Programs/")
     rlprg_file_name <- paste0(home_radiologik_playlists, cur_pl, ".rlprg")
     write.table(x = rlprg_file, file = rlprg_file_name, row.names = FALSE, col.names = FALSE, 
                 sep = "\t", quote = FALSE, fileEncoding = "UTF-8") 

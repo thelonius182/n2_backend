@@ -98,72 +98,71 @@ for (seg2 in 1:1) {
     }
     
     flog.info("Gids bijgewerkt: %s", cur_pl, name = "nipperlog")
-  }
   
-  #....+ replace replay-posts with recycled OE's ---- 
-  for (seg_oe in 1:1) {
-    ### TEST
-    # cur_pl <- "20220328_ma07.180_ochtendeditie"
-    ### TEST
-    
-    if (!str_detect(string = cur_pl, pattern = "_ochtendeditie")){
-      break
-    }
-    
-    #....+ . get recycle-OE's date ----
-    # details are on GD: kringloopherhalingen ochtendeditie
-    cur_pl_date <- playlist2postdate(cur_pl)
-    
-    replay_date <- cur_pl_date + days(7)
-    
-    oe_offset <- 
-      case_when(cur_pl_date >= ymd_hms("2020-06-22 07:00:00")              ~ 175L,
-                str_detect(string = cur_pl, pattern = "_(ma|di|wo|do)\\d") ~ 175L, 
-                TRUE                                                       ~ 182L)
-    
-    oe_date <- replay_date - days(oe_offset)
-    
-    tmp_log <- sprintf("Kringloopherhaling: op %s klinkt die van %s", 
-                       replay_date, oe_date)
-    flog.info(tmp_log, name = "nipperlog")
-    
-    #....+ . get replay_date's post-id ----
-    upd_stmt06 <- sprintf(
-      "select min(id) as min_id from wp_posts where post_date = '%s' and post_type = 'programma';",
-      replay_date
-    )
-    
-    replay_pgm_id <- dbGetQuery(wp_conn, upd_stmt06)
-    
-    #....+ . get recycle-OE's post-id ----
-    upd_stmt04 <- sprintf(
-      "select min(id) as min_id from wp_posts where post_date = '%s' and post_type = 'programma';",
-      oe_date
-    )
-    
-    oe_pgm_id <- dbGetQuery(wp_conn, upd_stmt04) 
-    
-    #....+ . update post-id's NL/EN ----
-    for (r1 in 1:2) {
-      oe_pgm_id_chr <- as.character(oe_pgm_id$min_id + r1 - 1L)
-      replay_pgm_id_chr <- as.character(replay_pgm_id$min_id + r1 - 1L)
-      upd_stmt05 <-
-        sprintf(
-          "update wp_postmeta set meta_value = %s where post_id = %s and meta_key = 'pr_metadata_orig';",
-          oe_pgm_id_chr,
-          replay_pgm_id_chr
-        )
+    #....+ replace replay-posts with recycled OE's ---- 
+    for (seg_oe in 1:1) {
+      ### TEST
+      # cur_pl <- "20220328_ma07.180_ochtendeditie"
+      ### TEST
       
-      flog.info("SQL: %s", upd_stmt05, name = "nipperlog")
+      if (!str_detect(string = cur_pl, pattern = "_ochtendeditie")){
+        break
+      }
       
-      dbExecute(wp_conn, upd_stmt05)
+      #....+ . get recycle-OE's date ----
+      # details are on GD: kringloopherhalingen ochtendeditie
+      cur_pl_date <- playlist2postdate(cur_pl)
+      
+      replay_date <- cur_pl_date + days(7)
+      
+      oe_offset <- 
+        case_when(cur_pl_date >= ymd_hms("2020-06-22 07:00:00")              ~ 175L,
+                  str_detect(string = cur_pl, pattern = "_(ma|di|wo|do)\\d") ~ 175L, 
+                  TRUE                                                       ~ 182L)
+      
+      oe_date <- replay_date - days(oe_offset)
+      
+      tmp_log <- sprintf("Kringloopherhaling: op %s klinkt die van %s", 
+                         replay_date, oe_date)
+      flog.info(tmp_log, name = "nipperlog")
+      
+      #....+ . get replay_date's post-id ----
+      upd_stmt06 <- sprintf(
+        "select min(id) as min_id from wp_posts where post_date = '%s' and post_type = 'programma';",
+        replay_date
+      )
+      
+      replay_pgm_id <- dbGetQuery(wp_conn, upd_stmt06)
+      
+      #....+ . get recycle-OE's post-id ----
+      upd_stmt04 <- sprintf(
+        "select min(id) as min_id from wp_posts where post_date = '%s' and post_type = 'programma';",
+        oe_date
+      )
+      
+      oe_pgm_id <- dbGetQuery(wp_conn, upd_stmt04) 
+      
+      #....+ . update post-id's NL/EN ----
+      for (r1 in 1:2) {
+        oe_pgm_id_chr <- as.character(oe_pgm_id$min_id + r1 - 1L)
+        replay_pgm_id_chr <- as.character(replay_pgm_id$min_id + r1 - 1L)
+        upd_stmt05 <-
+          sprintf(
+            "update wp_postmeta set meta_value = %s where post_id = %s and meta_key = 'pr_metadata_orig';",
+            oe_pgm_id_chr,
+            replay_pgm_id_chr
+          )
+        
+        flog.info("SQL: %s", upd_stmt05, name = "nipperlog")
+        
+        dbExecute(wp_conn, upd_stmt05)
+      }
+      
+      suppressMessages(stamped_format <- stamp("20191229_zo", orders = "%Y%0m%d_%a"))
+      dummy_pl <- paste0(stamped_format(cur_pl_date + days(7L)),
+                         "07-180_ochtendeditie")
+      flog.info("Gids bijgewerkt: %s", dummy_pl, name = "nipperlog")
     }
-    
-    suppressMessages(stamped_format <- stamp("20191229_zo", orders = "%Y%0m%d_%a"))
-    dummy_pl <- paste0(stamped_format(cur_pl_date + days(7L)),
-                       "07-180_ochtendeditie")
-    flog.info("Gids bijgewerkt: %s", dummy_pl, name = "nipperlog")
   }
-  
   on.exit(dbDisconnect(wp_conn))
 }
