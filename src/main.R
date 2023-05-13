@@ -26,10 +26,7 @@ suppressWarnings(suppressPackageStartupMessages(library(zip)))
 suppressWarnings(suppressPackageStartupMessages(library(stringr)))
 # suppressWarnings(suppressPackageStartupMessages(library(RMySQL)))
 
-
 config <- read_yaml("config_nip_nxt.yaml")
-
-
 filter <- dplyr::filter # voorkom verwarring met stats::filter
 
 home_prop <- function(prop) {
@@ -39,7 +36,7 @@ home_prop <- function(prop) {
     str_replace_all(pattern = "\\%2F", replacement = "/")
 }
 
-fa <- flog.appender(appender.file("c:/Users/gergiev/Logs/nipper_uzm_two.log"), name = "nipperlog")
+fa <- flog.appender(appender.file("c:/Users/gergiev/Logs/nipperstudio_uzm_two.log"), name = "nipperlog")
 
 source(config$toolbox, encoding = "UTF-8") # functions only
 
@@ -53,9 +50,26 @@ home_vt_audio_win  <- home_prop("home_vt_audio_win") %>%
 home_radiologik <- home_prop("home_radiologik_win")
 switch_home <- paste0(home_prop("home_schedulerswitch"), "nipper_msg.txt")
 
+# + connect to DB ----
+ns_con <- dbConnect(odbc::odbc(), "wpdev_mariadb", timeout = 10, encoding = "CP850")
+
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-# Nipper Next spreadsheet op GD openen, na aanmelden bij Google
+# NipperStudio van de spreadsheet maken
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+query <- "select * from wp_nipper_main_playlists"
+playlists_db <- dbGetQuery(conn = ns_con, statement = query)
+playlists.1 <- playlists_db %>% select(pl_id = id,
+                                       pl_date = program_date,
+                                       pl_start = time_start,
+                                       pl_name = playlist_name,
+                                       pl_transit = block_transition,
+                                       pl_state = finished,
+                                       pl_del_flag = deleted)
+query <- "select * from wp_nipper_blocks"
+block_db <- dbGetQuery(conn = ns_con, statement = query)
+query <- "select * from wp_nipper_tracklists"
+tracks_db <- dbGetQuery(conn = ns_con, statement = query)
+
 gs4_auth(email = "cz.teamservice@gmail.com")
 
 gd_nip_nxt_pl <- read_sheet(ss = config$url_nipper_next, sheet = "playlists")
