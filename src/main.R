@@ -1,33 +1,9 @@
 # = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 # Genereer RL-playlists, -schedules, draaiboeken en gidsvermeldingen..
 # = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-# Init
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-suppressWarnings(suppressPackageStartupMessages(library(knitr)))
-suppressWarnings(suppressPackageStartupMessages(library(rmarkdown)))
-suppressWarnings(suppressPackageStartupMessages(library(RCurl)))
-suppressWarnings(suppressPackageStartupMessages(library(readr)))
-suppressWarnings(suppressPackageStartupMessages(library(futile.logger)))
-suppressWarnings(suppressPackageStartupMessages(library(DBI)))
-suppressWarnings(suppressPackageStartupMessages(library(officer)))
-suppressWarnings(suppressPackageStartupMessages(library(httr)))
-suppressWarnings(suppressPackageStartupMessages(library(xml2)))
-suppressWarnings(suppressPackageStartupMessages(library(tidyverse)))
-suppressWarnings(suppressPackageStartupMessages(library(keyring)))
-suppressWarnings(suppressPackageStartupMessages(library(googlesheets4)))
-suppressWarnings(suppressPackageStartupMessages(library(yaml)))
-suppressWarnings(suppressPackageStartupMessages(library(fs)))
-suppressWarnings(suppressPackageStartupMessages(library(magrittr)))
-suppressWarnings(suppressPackageStartupMessages(library(hms)))
-suppressWarnings(suppressPackageStartupMessages(library(lubridate)))
-suppressWarnings(suppressPackageStartupMessages(library(zip)))
-suppressWarnings(suppressPackageStartupMessages(library(stringr)))
-# suppressWarnings(suppressPackageStartupMessages(library(RMySQL)))
-
-config <- read_yaml("config_nip_nxt.yaml")
-filter <- dplyr::filter # voorkom verwarring met stats::filter
+pacman::p_load(knitr, rmarkdown, RCurl, readr, futile.logger, DBI, officer, httr,
+               xml2, tidyverse, keyring, googlesheets4, yaml, fs, magrittr, hms,
+               lubridate, zip, stringr)
 
 home_prop <- function(prop) {
   prop_name <- paste0(prop, ".", host)
@@ -36,19 +12,19 @@ home_prop <- function(prop) {
     str_replace_all(pattern = "\\%2F", replacement = "/")
 }
 
-fa <- flog.appender(appender.file("c:/Users/gergiev/Logs/nipperstudio_backend.log"), name = "nsbe_log")
+# Init ----
+config <- read_yaml("config_nip_nxt.yaml")
+rds_home <- "C:/cz_salsa/cz_exchange/"
+filter <- dplyr::filter # voorkom verwarring met stats::filter
+
+source(config$toolbox, encoding = "UTF-8") # functions only
+source("src/compile_schedulerscript.R", encoding = "UTF-8") # functions only 
+source("src/shared_functions.R", encoding = "UTF-8") # functions only 
+
+fa <- flog.appender(appender.file("c:/cz_salsa/Logs/nipperstudio_backend.log"), name = "nsbe_log")
 flog.info("
 = = = = = NipperStudio start = = = = =", name = "nsbe_log")
-# functies laden
-source(config$toolbox, encoding = "UTF-8") 
-source("src/compile_schedulerscript.R", encoding = "UTF-8") 
-source("src/shared_functions.R", encoding = "UTF-8") 
 
-rds_home <- "C:/cz_salsa/cz_exchange/"
-
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-# Init
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 host <- config$host
 home_vt_audio_mac <- home_prop("home_vt_audio_mac")
 home_vt_audio_win  <- home_prop("home_vt_audio_win") %>% 
@@ -58,7 +34,11 @@ switch_home <- paste0(home_prop("home_schedulerswitch"), "nipper_msg.txt")
 gs4_auth(email = "cz.teamservice@gmail.com")
 
 # + connect to DB ----
-ns_con <- dbConnect(odbc::odbc(), "wpdev_mariadb", timeout = 10, encoding = "CP850")
+# ns_con <- dbConnect(odbc::odbc(), "wpdev_mariadb", timeout = 10, encoding = "CP850")
+ns_con <- get_ns_conn("DEV")
+
+stopifnot("WP-database is niet beschikbaar, zie C:/cz_salsa/Logs/nipperstudio_backend.log" = typeof(ns_con) == "S4")
+flog.info("Verbonden!", name = "nsbe_log")
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 # NipperStudio-versie van de spreadsheet maken
@@ -76,13 +56,14 @@ playlists.1 <- playlists_db %>%
          title_id = program_id,
          user_id)
 
-# + lees archief ----
+# + koppel archief ----
 playlists_his <- read_rds(paste0(rds_home, "nipper_main_playlists.RDS")) %>% 
   mutate(pl_date = ymd(program_date)) %>% 
   select(pl_date, 
          pl_start = time_start, 
          post_id,
          pl_name = playlist_name)
+
 playlists.2 <- playlists.1 %>% 
   left_join(playlists_his)
 
@@ -118,14 +99,92 @@ playlists.4 <- playlists.3 %>% filter(pl_state == 1) %>% select(pl_name, post_id
 playlists.5 <- playlists.3 %>% filter(pl_state == 1)
 
 if (nrow(playlists.4) == 0) {
-  flog.info("Geen playlists aangeboden", name = "nsbw_log")
+  flog.info("Geen nieuwe playlists gevonden", name = "nsbw_log")
+  dbDisconnect(ns_con)
+  stopifnot("Geen nieuwe playlists gevonden" = nrow(playlists.4) > 0)
 
 } else {
-  pl_log_names <- str_flatten(playlists.4$pl_name, collapse = ", ")
+  pl_log_names <- str_flatten(playlists.4$pl_name, collapse = "\n")
   pl_log_posts <- str_flatten(playlists.4$post_id, collapse = ", ")
-  flog.info(paste0("Aangeboden playlists: ", pl_log_names), name = "nsbe_log")
+  flog.info(paste0("Aangeboden playlists:\n", pl_log_names), name = "nsbe_log")
   flog.info(paste0("posts = ", pl_log_posts), name = "nsbe_log")
 }
+
+# check BUM audio ----
+# + get editors ----
+# editors worden afgekondigd na laatste bumperblok
+bum.1 <- playlists.5 %>% 
+  filter(pl_transit %in% c("LOB", "HIB")) %>% 
+  select(pl_name, user_id, title_id, pl_transit) %>% distinct()
+
+if (nrow(bum.1) > 0) {
+  
+  bum_editor_list <- paste0("('", bum.1$user_id %>% str_flatten(collapse = "', '"), "')")
+  sqlstmt <- "select display_name as user_name, id as user_id from wp_users where id in @EDLST"
+  sqlstmt <- str_replace(sqlstmt, "@EDLST", bum_editor_list)
+  bum_wp_users <- dbGetQuery(conn = ns_con, statement = sqlstmt)
+  bum.2 <- bum_wp_users %>% left_join(bum.1)
+  
+  # + get ns slugss ----
+  gs4_auth(email = "cz.teamservice@gmail.com")
+  url_wp_gidsinfo <- "16DrvLEXi3mEa9AbSw28YBkYpCvyO1wXwBwaNi7HpBkA"
+  gd_wp_gidsinfo_slugs_raw <- read_sheet(ss = url_wp_gidsinfo, sheet = "nipperstudio_slugs")
+  
+  titel_slugs <- gd_wp_gidsinfo_slugs_raw %>% 
+    select(starts_with("titel")) %>% 
+    mutate(title_id = as.integer(titel_id)) %>% 
+    filter(!is.na(title_id))
+  
+  redacteur_slugs <- gd_wp_gidsinfo_slugs_raw %>% 
+    select(starts_with("redacteur")) %>% 
+    mutate(user_id = as.integer(redacteur_id)) %>% 
+    filter(!is.na(user_id))
+  
+  bum.3 <- bum.2 %>% 
+    left_join(titel_slugs) %>% 
+    left_join(redacteur_slugs) %>% 
+    select(pl_name,
+           user_id,
+           user_name,
+           user_slug = redacteur_slug,
+           title_id,
+           title_name = titel,
+           title_slug = titel_slug,
+           pl_transit)
+  
+  bum.3_err <- bum.3 %>% 
+    filter(is.na(user_slug) | is.na(title_slug)) %>% 
+    select(pl_name) %>% 
+    mutate(pl_status = 3L)
+  
+  if (nrow(bum.3_err) > 0) {
+    pl_in_err <- str_flatten(bum.3_err$pl_name, collapse = "\n")
+    flog.info(paste0("Bumperregistratie van redacteur en/of pgm-titel is incompleet:\n",
+                     pl_in_err, "\nZie WP-gidsinfo/nipperstudio_slugs"), name = "nsbe_log")
+    bum.3 <- bum.3 %>% anti_join(bum.3_err)
+  }
+  
+  bum.4 <- bum.3 %>% select(-pl_name, -user_id, -user_name, -title_id, -title_name) %>% distinct() %>% 
+    mutate(dir_transit = if_else(pl_transit == "LOB", 
+                                 paste0("laag/af/", user_slug),
+                                 paste0("hoog/af/", user_slug)))
+  
+  # bumper folders ----
+  bf_home <- bum.4 %>% select(title_slug) %>% distinct() %>% 
+    mutate(ns_dir_name = paste0("//uitzendmac-2/Data/Nipper/studiomontage/bumpers/", 
+                                title_slug,
+                                "/")) %>% select(-title_slug)
+  
+  bf_hib_aan <- paste0(bf_home$ns_dir_name, "hoog/aan/")
+  bf_hib_af <- paste0(bf_home$ns_dir_name, 
+                      bum.4 %>% 
+                        filter(str_detect(dir_transit, "hoog")) %>% 
+                        select(dir_transit))
+  bf_hib_over <- paste0(bf_home$ns_dir_name, "hoog/over/")
+  
+  
+}
+
 
 # gd_nip_nxt_pl <- read_sheet(ss = config$url_nipper_next, sheet = "playlists")
 # gd_nip_nxt_sel_raw <- read_sheet(ss = config$url_nipper_next, sheet = "nipper-select")
@@ -273,7 +332,7 @@ for (seg1 in 1:1) { # zorgt voor een script-segment dat met "break" verlaten kan
   # koppel muw-audio ----
   n_cols <- str_count(playlists.6$recording_no, ",") %>% max() + 1
   # muw_wavs.1 <-
-  playlists.7 <- separate(data = playlist.6,
+  playlists.7 <- separate(data = playlists.6,
                           col = recording_no,
                           into = paste0("muw", 1:n_cols),
                           sep = ", ",
@@ -302,24 +361,27 @@ for (seg1 in 1:1) { # zorgt voor een script-segment dat met "break" verlaten kan
   Sys.sleep(time = 5)
   flog.info("RL-scheduler is gestopt", name = "nsbe_log")
   
-  for (cur_pl in playlists.7 %>% select(pl_name) %>% distinct()) {
+  for (cur_pl in playlists.4) {
     duration_rlprg <- 3600L * as.numeric(str_sub(cur_pl, 15, 17)) / 60L
     
-    cur_duur <- pl_duur %>% filter(playlist == cur_pl) %>% 
+    cur_duur <- playlists.4 %>% filter(pl_name == cur_pl) %>% 
       mutate(cur_duur_parm = paste0("Duration:", duration_rlprg)) %>% 
       select(cur_duur_parm) %>% 
       unite(col = regel, sep = "\t")
     
-    cur_pl_nieuw <- pl_nieuw %>% filter(playlist == cur_pl)
-
     rlprg_file <- bind_rows(cur_duur) # , cur_tune)
     
-    blokken <- pl_tracks %>% filter(playlist == cur_pl) %>% distinct(vt_blok_letter) 
-    slot_letter <- LETTERS[1 + nrow(blokken)]
+    cur_pl_nieuw <- playlists.7 %>% filter(pl_name == cur_pl)
+    
+    blokken <- cur_pl_nieuw %>% distinct(block_order) %>% 
+      mutate(bid = paste0("BLK_", LETTERS[block_order])) %>% 
+      select(vt_blok_letter = bid)
+    slot_letter <- paste0("BLK_", LETTERS[1 + nrow(blokken)])
     slot <- slot_letter %>% as_tibble %>% setNames("vt_blok_letter")
     blokken %<>% bind_rows(slot) 
     
-    playlist_id <- pl_nieuw %>% filter(playlist == cur_pl) %>% select(playlist_id) %>% slice(1)
+    playlist_id <- playlists.4 %>% filter(pl_name == cur_pl) %>% 
+      mutate(playlist_id = paste0("NS", post_id)) %>% select(playlist_id) 
     
     vt_blok_pad <- audio_locaties %>% filter(sleutel == "vt_blok", functie == "pres_blok") %>% 
       mutate(locatie = paste0(home_vt_audio_mac, locatie)) %>% 

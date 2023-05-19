@@ -44,3 +44,26 @@ get_wp_conn <- function() {
   )
   return(result)
 }
+
+get_ns_conn <- function(db_env) {
+  
+  fa <- flog.appender(appender.file("c:/cz_salsa/Logs/nipperstudio_backend.log"), name = "nsbe_log")
+  
+  if (db_env == "DEV") {
+    db_env <- "wpdev_mariadb"
+  } else if (db_env == "PRD") {
+    db_env <- "wpdev_mariadb"
+  } 
+  
+  flog.info(sprintf("Verbinden met Wordpress database %s ...)", db_env), name = "nsbe_log")
+  
+  result <- tryCatch( {
+    grh_con <- dbConnect(odbc::odbc(), db_env, timeout = 10, encoding = "CP850")
+  },
+  error = function(cond) {
+    flog.error(sprintf("Database %s onbereikbaar (if dev: check PuTTY)", db_env), name = "nsbe_log")
+    return("connection-error")
+  }
+  )
+  return(result)
+}
