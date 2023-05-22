@@ -266,8 +266,6 @@ if (nrow(bum.1) > 0) {
       select(cur_duur_parm) %>% 
       unite(col = regel, sep = "\t")
     
-    # rlprg_file <- bind_rows(cur_duur) # , cur_tune)
-    
     cur_pl_nieuw <- playlists.6 %>% filter(pl_name == cur_pl)
     
     blokken <- cur_pl_nieuw %>% distinct(block_order) %>% 
