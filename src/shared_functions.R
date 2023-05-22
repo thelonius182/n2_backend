@@ -67,3 +67,27 @@ get_ns_conn <- function(db_env) {
   )
   return(result)
 }
+
+random_select <- function(L1, n1) {
+  
+  m1 <- length(L1)
+  
+  if (n1 > m1) {
+    # Select all items from L1 and reorder them randomly
+    selected_items <- sample(L1)
+    
+    # add the remaining elements, making sure they don't match the previous 3
+    for (i1 in (m1 + 1):n1) {
+      last_three_items <- selected_items[(i1-3):(i1-1)]
+      available_items <- setdiff(L1, last_three_items)
+      # n_available_items >= 2 because m1 >= 5
+      selected_items[i1] <- sample(available_items, 1)
+    }
+    
+  } else {
+    selected_items <- vector("integer", n1)
+    selected_items <- sample(L1, size = n1)
+  }
+  
+  return(selected_items)
+}
