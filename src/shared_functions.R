@@ -55,7 +55,7 @@ get_ns_conn <- function(db_env) {
     db_env <- "wpdev_mariadb"
   } 
   
-  flog.info(sprintf("Verbinden met Wordpress database %s ...)", db_env), name = "nsbe_log")
+  flog.info(sprintf("Verbinden met Wordpress database %s ...", db_env), name = "nsbe_log")
   
   result <- tryCatch( {
     grh_con <- dbConnect(odbc::odbc(), db_env, timeout = 10, encoding = "CP850")
@@ -90,4 +90,24 @@ random_select <- function(L1, n1) {
   }
   
   return(selected_items)
+}
+
+get_bumper_audio <- function(pm_playlist, pm_blok, pm_stack) {
+  
+  if (pm_blok == "RL_BLK_A") {
+    bum_aan_df <- bum_aan %>% filter(pl_name == pm_playlist)
+    bum_obs <- bum_aan_df$ns_dir[1]
+  } else if (pm_blok == "SLOT") {
+    bum_af_df <- bum_af %>% filter(pl_name == pm_playlist)
+    bum_obs <- bum_af_df$ns_dir[1]
+  } else {
+    bum_over_df <- bum_over %>% filter(pl_name == pm_playlist)
+    obs <- pm_stack$pop()
+    bum_obs <- bum_over_df$ns_dir[obs]
+  }
+  
+  fnam_raw <- dir_ls(path = bum_obs, type = "file")
+  fnam <- str_replace(string = fnam_raw, pattern = "//uitzendmac-2", replacement = "file:///Volumes")
+  
+  return(fnam)
 }

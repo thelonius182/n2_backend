@@ -3,7 +3,7 @@
 # = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 pacman::p_load(knitr, rmarkdown, RCurl, readr, futile.logger, DBI, officer, httr,
                xml2, tidyverse, keyring, googlesheets4, yaml, fs, magrittr, hms,
-               lubridate, zip, stringr)
+               lubridate, zip, stringr, fastmap)
 
 fa <- flog.appender(appender.file("c:/cz_salsa/Logs/nipperstudio_backend.log"), name = "nsbe_log")
 flog.info("
@@ -256,8 +256,11 @@ if (nrow(bum.1) > 0) {
   playlists.6 <- playlists.5 %>% 
     group_by(pl_id, block_order, block_id) %>% 
     mutate(blokduur_sec = sum(length)) %>% ungroup()
-
+  
+  # DAN TOT HIER ----
+  
   for (cur_pl in bum.3$pl_name) {
+    
     duration_rlprg <- 3600L * as.numeric(str_sub(cur_pl, 15, 17)) / 60L
     
     # + - rlprg.1 ----
@@ -271,6 +274,16 @@ if (nrow(bum.1) > 0) {
     blokken <- cur_pl_nieuw %>% distinct(block_order) %>% 
       mutate(bid = paste0("RL_BLK_", LETTERS[block_order])) %>% 
       select(vt_blok_letter = bid)
+    
+    # _ . bumpervolgorde ---- 
+    bumper_stack <- faststack()
+    
+    bu_seq <- random_select(c(1:5), nrow(blokken) - 1)
+    print(bu_seq)
+    
+    for (i1 in length(bu_seq):1) {
+      bumper_stack$push(bu_seq[i1])
+    }
 
     # vt_blok_pad <- audio_locaties %>% filter(sleutel == "vt_blok", functie == "pres_blok") %>% 
     #   mutate(locatie = paste0(home_vt_audio_mac, locatie)) %>% 
@@ -280,35 +293,36 @@ if (nrow(bum.1) > 0) {
       cur_pres <- cur_pl %>% as_tibble %>% 
         mutate(
           duur = "",
-          audiofile = paste0("file://", vt_blok_pad, playlist_id, "_", match(blok, LETTERS), ".aif"),
+          audiofile = get_bumper_audio(pm_playlist = cur_pl, pm_blok = blok, pm_stack = bumper_stack),
           const_false = "FALSE",
-          start_sec_sinds_middernacht = if_else(blok == "A",
-                                                as.integer(cur_pl_nieuw$start) * 3600,
-                                                -1), # "direct erna afspelen"
+          start_sec_sinds_middernacht = if_else(blok == "RL_BLK_A",
+                                                cur_pl_nieuw$pl_start[1] * 3600L,
+                                                -1L), # -1 = direct erna afspelen
           fwdtab1 = "",
           fwdtab2 = "",
           fwdtab3 = "",
-          speler_regel01 = "voicetracking",
+          speler_regel01 = cur_pl_nieuw$pl_transit[1],
           opname_hfd_sub = "",
-          speler_regel02 = paste0("blok ", blok)
-        ) %>% 
+          speler_regel02 = blok) %>% 
         select(-value) %>% 
         unite(col = regel, sep = "\t")
     
-      cur_tracks_in_blok <- pl_tracks %>% filter(playlist == cur_pl, vt_blok_letter == blok) %>% 
-        left_join(., pl_werken, by = c("playlist", "vt_blok_letter", "vt_blok_nr")) %>% 
+      cur_block_order <- match(blok, blokken$vt_blok_letter)
+      
+      cur_tracks_in_blok <- cur_pl_nieuw %>% 
+        filter(pl_name == cur_pl & block_order == cur_block_order) %>% 
         mutate(
           duur = "",
-          audiofile = paste0("file:/", uzm_locatie),
+          audiofile = paste0("file:///Volumes/Data/Nipper/muziekweb_audio/", recording_no),
           const_false = "FALSE",
           start_sec_sinds_middernacht = -1, # "direct erna afspelen"
           fwdtab1 = "",
           fwdtab2 = "",
           fwdtab3 = "",
           speler_regel01 = componist,
-          opname_hfd_sub = paste0(cur_pl_nieuw$playlist_id[[1]], 
+          opname_hfd_sub = paste0("NS", post_id[1], 
                                   "-", 
-                                  vt_blok_letter, vt_blok_nr),
+                                  blokken$vt_blok_letter[cur_block_order]),
           speler_regel02 = titel
         ) %>% 
         select(duur, audiofile, const_false, start_sec_sinds_middernacht, 
@@ -317,7 +331,25 @@ if (nrow(bum.1) > 0) {
       
       rlprg_file %<>% bind_rows(cur_pres, cur_tracks_in_blok)
     }
-
+    
+    # slot ----
+    cur_pres <- cur_pl %>% as_tibble %>% 
+      mutate(
+        duur = "",
+        audiofile = get_bumper_audio(pm_playlist = cur_pl, pm_blok = "SLOT", pm_stack = bumper_stack),
+        const_false = "FALSE",
+        start_sec_sinds_middernacht = -1L, 
+        fwdtab1 = "",
+        fwdtab2 = "",
+        fwdtab3 = "",
+        speler_regel01 = cur_pl_nieuw$pl_transit[1],
+        opname_hfd_sub = "",
+        speler_regel02 = "SLOT") %>% 
+      select(-value) %>% 
+      unite(col = regel, sep = "\t")
+    
+    rlprg_file %<>% bind_rows(cur_pres)
+    
     cur_pl %<>% str_replace_all(pattern = "[.]", replacement = "-")
     
     # zet de playlist in de programs-map van RL
