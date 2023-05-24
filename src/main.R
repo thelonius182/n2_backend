@@ -353,17 +353,18 @@ if (nrow(bum.1) > 0) {
     cur_pl %<>% str_replace_all(pattern = "[.]", replacement = "-")
     
     # zet de playlist in de programs-map van RL
-    home_radiologik_playlists <- paste0(home_prop("home_radiologik_win"), "Programs/")
+    home_radiologik_playlists <- "C:/cz_salsa/nipper/temp_rlprg/"
+    # home_radiologik_playlists <- paste0(home_prop("home_radiologik_win"), "Programs/")
     rlprg_file_name <- paste0(home_radiologik_playlists, cur_pl, ".rlprg")
     write.table(x = rlprg_file, file = rlprg_file_name, row.names = FALSE, col.names = FALSE, 
                 sep = "\t", quote = FALSE, fileEncoding = "UTF-8") 
     
-    flog.info("RL-program toegevoegd: %s", rlprg_file_name, name = "nsbe_log")
+    flog.info("RL-playlist toegevoegd: %s", rlprg_file_name, name = "nsbe_log")
     
     # RL-scheduler samenstellen ----
     build_rl_script(cur_pl)
     
-    flog.info("RL-schedulerscript toegevoegd voor %s", cur_pl, name = "nsbe_log")
+    flog.info("RL-scheduler toegevoegd: %s", cur_pl, name = "nsbe_log")
   }
   
   # Herstart RL-scheduler ----

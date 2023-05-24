@@ -1,50 +1,52 @@
 source("src/shared_functions.R", encoding = "UTF-8")
 
 for (seg2 in 1:1) {
-  # Connect to database -----------------------------------------------------
-  wp_conn <- get_wp_conn()
+  # + connect to DB ----
+  # ns_con <- dbConnect(odbc::odbc(), "wpdev_mariadb", timeout = 10, encoding = "CP850")
+  ns_con <- get_ns_conn("DEV")
   
-  # connection type S4 indicates a valid connection; other types indicate failure
-  if (typeof(wp_conn) != "S4") { 
-    flog.error("Nipper: invalid db-connection (non-S4)", name = "nipperlog")
-    break
-  }
+  stopifnot("WP-database is niet beschikbaar, zie C:/cz_salsa/Logs/nipperstudio_backend.log" = typeof(ns_con) == "S4")
+  flog.info("Verbonden!", name = "nsbe_log")
   
   # gidsgegevens klaarzetten ------------------------------------------------
-  dummy_vt <- pl_werken %>% filter(vt_blok_nr == 1) %>% 
-    mutate(vt_blok_nr = 0, lengte_sec = as_hms(40))
+  ns_tracks <- playlists.6 %>% filter(pl_name %in% bum.3$pl_name)
   
-  drb_gids <- rbind(pl_werken, dummy_vt) %>%
-    arrange(playlist, vt_blok_letter, vt_blok_nr) %>% group_by(playlist) %>%
+  dummy_bumpers <- ns_tracks %>% 
+    filter(block_order == 1 & track_order == 1) %>% 
+    mutate(block_order = 0, length = 30L)
+  
+  # draaiboeken gids
+  drb_gids <- rbind(dummy_bumpers, ns_tracks) %>% 
+    # filter(track_order == 1) %>% 
+    arrange(pl_name, block_order, track_order) %>% 
+    group_by(pl_name) %>%
     mutate(
-      cum_tijd = np_sec2hms(cumsum(as.duration(lengte_sec))),
+      cum_tijd = np_sec2hms(cumsum(as.duration(length))),
       # cum_tijd_secs = seconds(cumsum(as.duration(lengte)) %% 60),
       # cum_tijd_secs2min = ifelse(cum_tijd_secs > 30, 1, 0),
       cum_tijd = lag(cum_tijd, n = 1)) %>% 
     mutate(
       # cum_tijd_secs = lag(cum_tijd_secs, n = 1),
       # cum_tijd_secs2min = lag(cum_tijd_secs2min, n = 1)
-      wallclock = get_wallclock(pm_cum_tijd = cum_tijd, pm_playlist = playlist)) %>% 
-    filter(vt_blok_nr != 0) %>% 
-    select(-album, -opnameNr, -starts_with("vt_"))
+      wallclock = get_wallclock(pm_cum_tijd = cum_tijd, pm_playlist = pl_name)) %>% 
+    filter(block_order != 0) %>% 
+    select(-album, -recording_no, -c(pl_id:user_id), -c(block_order:track_id))
   
   # update gids -------------------------------------------------------------
   
-  for (cur_pl in pl_nieuw$playlist) {
-    ### TEST
-    # cur_pl = "20220328_ma07.180_ochtendeditie"
-    ### TEST
-    
+  for (cur_pl in unique(ns_tracks$pl_name)) {
+
     sql_post_date <- playlist2postdate(cur_pl) %>% as.character
     
     ### TEST
     # sql_post_date <- "2022-03-08 19:00:00"
     ### TEST
     
-    drb_gids_pl <- drb_gids %>% filter(playlist == cur_pl)
+    drb_gids_pl <- drb_gids %>% filter(pl_name == cur_pl)
     
-    koptekst <- drb_gids_pl %>% select(playlist, componist) %>% distinct %>% 
-      group_by(playlist) %>% summarise(werken_van = paste(componist, collapse = ", "))
+    koptekst <- drb_gids_pl %>% select(pl_name, componist) %>% distinct %>% 
+      group_by(pl_name) %>% summarise(werken_van = paste(componist, collapse = ", "))
+    
     sql_gidstekst <- sprintf("Werken van %s.\n<!--more-->\n\n", koptekst$werken_van)
     
     regel <- '<style>td {padding: 6px; text-align: left;}</style>\n<table style="width: 100%;"><tbody>'
@@ -78,7 +80,7 @@ for (seg2 in 1:1) {
       "select id from wp_posts where post_date = '%s' and post_type = 'programma';",
       sql_post_date
     )
-    dsSql01 <- dbGetQuery(wp_conn, upd_stmt01)
+    dsSql01 <- dbGetQuery(ns_con, upd_stmt01)
     
     for (u1 in 1:nrow(dsSql01)) {
       upd_stmt02 <- sprintf(
@@ -87,17 +89,17 @@ for (seg2 in 1:1) {
         as.character(dsSql01$id[u1])
       )
       
-      dbExecute(wp_conn, upd_stmt02)
+      dbExecute(ns_con, upd_stmt02)
       
       upd_stmt03 <- sprintf(
         "insert into wp_postmeta (post_id, meta_key, meta_value) values(%s, '_thumbnail_id', %s);",
         as.character(dsSql01$id[u1]),
         as.character(463848L)
       )
-      dbExecute(wp_conn, upd_stmt03)
+      dbExecute(ns_con, upd_stmt03)
     }
     
-    flog.info("Gids bijgewerkt: %s", cur_pl, name = "nipperlog")
+    flog.info("Gids bijgewerkt: %s", cur_pl, name = "nsbe_log")
   
     #....+ replace replay-posts with recycled OE's ---- 
     for (seg_oe in 1:1) {
@@ -124,7 +126,7 @@ for (seg2 in 1:1) {
       
       tmp_log <- sprintf("Kringloopherhaling: op %s klinkt die van %s", 
                          replay_date, oe_date)
-      flog.info(tmp_log, name = "nipperlog")
+      flog.info(tmp_log, name = "nsbe_log")
       
       #....+ . get replay_date's post-id ----
       upd_stmt06 <- sprintf(
@@ -132,7 +134,7 @@ for (seg2 in 1:1) {
         replay_date
       )
       
-      replay_pgm_id <- dbGetQuery(wp_conn, upd_stmt06)
+      replay_pgm_id <- dbGetQuery(ns_con, upd_stmt06)
       
       #....+ . get recycle-OE's post-id ----
       upd_stmt04 <- sprintf(
@@ -140,7 +142,7 @@ for (seg2 in 1:1) {
         oe_date
       )
       
-      oe_pgm_id <- dbGetQuery(wp_conn, upd_stmt04) 
+      oe_pgm_id <- dbGetQuery(ns_con, upd_stmt04) 
       
       #....+ . update post-id's NL/EN ----
       for (r1 in 1:2) {
@@ -153,16 +155,16 @@ for (seg2 in 1:1) {
             replay_pgm_id_chr
           )
         
-        flog.info("SQL: %s", upd_stmt05, name = "nipperlog")
+        flog.info("SQL: %s", upd_stmt05, name = "nsbe_log")
         
-        dbExecute(wp_conn, upd_stmt05)
+        dbExecute(ns_con, upd_stmt05)
       }
       
       suppressMessages(stamped_format <- stamp("20191229_zo", orders = "%Y%0m%d_%a"))
       dummy_pl <- paste0(stamped_format(cur_pl_date + days(7L)),
                          "07-180_ochtendeditie")
-      flog.info("Gids bijgewerkt: %s", dummy_pl, name = "nipperlog")
+      flog.info("Gids bijgewerkt: %s", dummy_pl, name = "nsbe_log")
     }
   }
-  on.exit(dbDisconnect(wp_conn))
+  on.exit(dbDisconnect(ns_con))
 }
