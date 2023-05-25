@@ -88,6 +88,9 @@ tracks.1 <- tracks_db %>%
          track_id = id,
          everything())
 
+dbDisconnect(ns_con)
+flog.info("DB disconnected", name = "nsbw_log")
+  
 # + merge ----
 playlists.3 <- playlists.2 %>% 
   left_join(blocks.1) %>% 
@@ -102,7 +105,6 @@ playlists.5 <- playlists.3 %>% filter(pl_state == 1)
 if (nrow(playlists.4) == 0) {
   flog.info("Geen nieuwe playlists gevonden", name = "nsbw_log")
   flog.info("= = = = = NipperStudio stop = = = = =", name = "nsbe_log")
-  dbDisconnect(ns_con)
   stopifnot("Geen nieuwe playlists gevonden" = nrow(playlists.4) > 0)
 }
 
@@ -363,8 +365,6 @@ if (nrow(bum.1) > 0) {
     
     # RL-scheduler samenstellen ----
     build_rl_script(cur_pl)
-    
-    flog.info("RL-scheduler toegevoegd: %s", cur_pl, name = "nsbe_log")
   }
   
   # Herstart RL-scheduler ----
@@ -376,6 +376,76 @@ if (nrow(bum.1) > 0) {
   # gids samenstellen ----
   flog.info("Gids bijwerken...", name = "nsbe_log")
   source("src/update_gids.R", encoding = "UTF-8")
+  
+  # MuW order forms ----
+  pl_forms <- bum.1 %>% anti_join(bum.3_err) %>% select(pl_name)
+  
+  for (cur_pl_form in pl_forms$pl_name) {
+    
+    cur_playlist <- ns_tracks %>% filter(pl_name == cur_pl_form)
+    
+    muw_aanvraag_file <- paste0("g:/salsa/muziekweb_aanvragen/", cur_pl_form, ".txt")
+    
+    if (file_exists(muw_aanvraag_file)) {
+      file_delete(muw_aanvraag_file)
+    }
+    
+    cur_muziekweb <- cur_playlist %>% select(recording_no) %>% 
+      separate(recording_no, into = paste0("muw_track", 1:15), sep = ", ", fill = "right")
+      mutate(muw_track_chr = as.character(muw_track)) %>% 
+      select(muw_album_id, muw_track_chr) %>% 
+      pivot_longer(names_to = "df_name", values_to = "order_line", cols = c("muw_album_id", "muw_track_chr")) %>% 
+      select(order_line)
+    
+    if (nrow(cur_muziekweb) > 0) {
+      write_lines(x = cur_muziekweb$order_line, file = muw_aanvraag_file, append = F)
+    }
+  }
+  
+  # playlists voltooid melden ----
+  # + connect to DB ----
+  ns_con <- get_ns_conn("DEV")
+  
+  stopifnot("WP-database is niet beschikbaar, zie C:/cz_salsa/Logs/nipperstudio_backend.log" = typeof(ns_con) == "S4")
+  flog.info("Verbonden!", name = "nsbe_log")
+
+  pl_finshed <- bum.1 %>% anti_join(bum.3_err) %>% 
+    mutate(pl_status = 2) %>% select(pl_name, pl_status) %>% 
+    add_row(bum.3_err)
+  
+  # + . geslaagd ----
+  pl_passed <- pl_finshed %>% filter(pl_status == 2) %>% select(pl_name)
+  
+  if (nrow(pl_passed) > 0) {
+    
+    pl_passed_str <- paste0("('",
+                            str_flatten(string = pl_passed$pl_name, collapse = "', '"),
+                            "')")
+    sql_stmt <- sprintf("update wp_nipper_main_playlists set finished = 2 where playlist_name in %s",
+                        pl_passed_str)
+    
+    dbExecute(conn = ns_con, statement = sql_stmt)
+    
+    flog.info(paste0("Geslaagd: ", pl_passed_str), name = "nsbe_log")
+  }
+
+  # + . mislukt ----
+  pl_failed <- pl_finshed %>% filter(pl_status == 3) %>% select(pl_name)
+  
+  if (nrow(pl_failed) > 0) {
+    
+    pl_failed_str <- paste0("('",
+                            str_flatten(string = pl_failed$pl_name, collapse = "', '"),
+                            "')")
+    sql_stmt <- sprintf("update wp_nipper_main_playlists set finished = 3 where playlist_name in %s",
+                        pl_failed_str)
+    
+    dbExecute(conn = ns_con, statement = sql_stmt)
+    
+    flog.info(paste0("Mislukt: ", pl_failed_str), name = "nsbe_log")
+  }
+  
+  dbDisconnect(ns_con)
 }
 
 flog.info("= = = = = NipperStudio stop = = = = =", name = "nsbe_log")

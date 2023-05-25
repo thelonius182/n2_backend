@@ -128,10 +128,8 @@ build_rl_script <- function(arg_playlist) {
   home_radiologik_schedules <- "C:/cz_salsa/nipper/temp_rlprg/"
   # home_radiologik_schedules <- paste0(home_prop("home_radiologik_win"), "Schedule/")
   nrow_schedules <- 1L + dir_ls(path = home_radiologik_schedules) %>% 
-    as_tibble() %>% 
-    nrow
+    as_tibble() %>% nrow
   
-  # tmp_replacement <- if_else()
   script_file_name <- sprintf(paste0("%03d - ", 
                                      paste0(str_sub(playlist, 1, 4),
                                             "-",
@@ -145,8 +143,19 @@ build_rl_script <- function(arg_playlist) {
   
   script_file_name <- paste0(home_radiologik_schedules, script_file_name)
   
-  write.table(x = script_file, file = script_file_name, row.names = FALSE, col.names = FALSE, 
-              sep = "\t", quote = FALSE, fileEncoding = "UTF-8") 
+  # bestaand script laten staan
+  existing_script <- dir_ls(path = home_radiologik_schedules,
+                            type = "file",
+                            regexp = str_sub(path_file(script_file_name), 7))
+  
+  if (length(existing_script) == 0) {
+    write.table(x = script_file, file = script_file_name, row.names = FALSE, col.names = FALSE, 
+                sep = "\t", quote = FALSE, fileEncoding = "UTF-8") 
+    
+    flog.info("RL-schedulerjob toegevoegd: %s", cur_pl, name = "nsbe_log")
+  } else {
+    flog.info("RL-schedulerjob al aanwezig: %s", cur_pl, name = "nsbe_log")
+  }
 }
 
 rls_dagletters <- function(some_playlist) {

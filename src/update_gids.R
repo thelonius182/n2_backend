@@ -32,7 +32,7 @@ for (seg2 in 1:1) {
     filter(block_order != 0) %>% 
     select(-album, -recording_no, -c(pl_id:user_id), -c(block_order:track_id))
   
-  # update gids -------------------------------------------------------------
+  # update gids ----
   
   for (cur_pl in unique(ns_tracks$pl_name)) {
 
@@ -83,8 +83,13 @@ for (seg2 in 1:1) {
     dsSql01 <- dbGetQuery(ns_con, upd_stmt01)
     
     for (u1 in 1:nrow(dsSql01)) {
+      # upd_stmt02 <- sprintf(
+      #   "update wp_posts set post_content = convert(cast('%s' as binary) using utf8mb4) where id = %s;",
+      #   sql_gidstekst,
+      #   as.character(dsSql01$id[u1])
+      # )
       upd_stmt02 <- sprintf(
-        "update wp_posts set post_content = convert(cast('%s' as binary) using utf8mb4) where id = %s;",
+        "update wp_posts set post_content = '%s' where id = %s;",
         sql_gidstekst,
         as.character(dsSql01$id[u1])
       )
@@ -164,6 +169,7 @@ for (seg2 in 1:1) {
       dummy_pl <- paste0(stamped_format(cur_pl_date + days(7L)),
                          "07-180_ochtendeditie")
       flog.info("Gids bijgewerkt: %s", dummy_pl, name = "nsbe_log")
+      flog.info("DB disconnected", name = "nsbe_log")
     }
   }
   on.exit(dbDisconnect(ns_con))
