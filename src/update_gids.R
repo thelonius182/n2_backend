@@ -1,12 +1,12 @@
-source("src/shared_functions.R", encoding = "UTF-8")
+# source("src/shared_functions.R", encoding = "UTF-8")
 
 for (seg2 in 1:1) {
   # + connect to DB ----
   # ns_con <- dbConnect(odbc::odbc(), "wpdev_mariadb", timeout = 10, encoding = "CP850")
-  ns_con <- get_ns_conn("DEV")
-  
-  stopifnot("WP-database is niet beschikbaar, zie C:/cz_salsa/Logs/nipperstudio_backend.log" = typeof(ns_con) == "S4")
-  flog.info("Verbonden!", name = "nsbe_log")
+  # ns_con <- get_ns_conn("DEV")
+  # 
+  # stopifnot("WP-database is niet beschikbaar, zie C:/cz_salsa/Logs/nipperstudio_backend.log" = typeof(ns_con) == "S4")
+  # flog.info("Verbonden!", name = "nsbe_log")
   
   # gidsgegevens klaarzetten ------------------------------------------------
   ns_tracks <- playlists.6 %>% filter(pl_name %in% bum.3$pl_name)
@@ -47,7 +47,8 @@ for (seg2 in 1:1) {
     koptekst <- drb_gids_pl %>% select(pl_name, componist) %>% distinct %>% 
       group_by(pl_name) %>% summarise(werken_van = paste(componist, collapse = ", "))
     
-    sql_gidstekst <- sprintf("Werken van %s.\n<!--more-->\n\n", koptekst$werken_van)
+    # sql_gidstekst <- sprintf("Werken van %s.\n<!--more-->\n\n", koptekst$werken_van)
+    sql_gidstekst <- "$#HEADER#$\n<!--more-->\n\n"
     
     regel <- '<style>td {padding: 6px; text-align: left;}</style>\n<table style="width: 100%;"><tbody>'
     sql_gidstekst <- paste0(sql_gidstekst, regel, "\n")
@@ -77,7 +78,7 @@ for (seg2 in 1:1) {
     sql_gidstekst <- paste0(sql_gidstekst, regel, "\n") %>% str_replace_all("[']", "&#39;")
     
     upd_stmt01 <- sprintf(
-      "select id from wp_posts where post_date = '%s' and post_type = 'programma';",
+      "select id from wp_posts where post_date = '%s' and post_type = 'programma' order by 1;",
       sql_post_date
     )
     dsSql01 <- dbGetQuery(ns_con, upd_stmt01)
@@ -88,6 +89,11 @@ for (seg2 in 1:1) {
       #   sql_gidstekst,
       #   as.character(dsSql01$id[u1])
       # )
+      sql_gidstekst <- sql_gidstekst %>% if_else(u1 == 1, 
+                                                 str_replace("$#HEADER#$", 
+                                                             "Een fijne mix met gestoofde ingrediënten."),
+                                                 str_replace("$#HEADER#$", 
+                                                             "A vegetable stew with different ingredients."))
       upd_stmt02 <- sprintf(
         "update wp_posts set post_content = '%s' where id = %s;",
         sql_gidstekst,
@@ -169,8 +175,7 @@ for (seg2 in 1:1) {
       dummy_pl <- paste0(stamped_format(cur_pl_date + days(7L)),
                          "07-180_ochtendeditie")
       flog.info("Gids bijgewerkt: %s", dummy_pl, name = "nsbe_log")
-      flog.info("DB disconnected", name = "nsbe_log")
     }
   }
-  on.exit(dbDisconnect(ns_con))
+  # on.exit(dbDisconnect(ns_con))
 }

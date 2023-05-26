@@ -87,9 +87,6 @@ tracks.1 <- tracks_db %>%
          track_order = sort_order,
          track_id = id,
          everything())
-
-dbDisconnect(ns_con)
-flog.info("DB disconnected", name = "nsbw_log")
   
 # + merge ----
 playlists.3 <- playlists.2 %>% 
@@ -121,7 +118,15 @@ bum.1 <- playlists.5 %>%
   select(pl_name, user_id, title_id, pl_transit) %>% distinct()
 
 # TOT HIER ----
+# Stop RL-scheduler ----
+flog.info("RL-scheduler stoppen", name = "nsbe_log")
+# switch <- read_lines(file = switch_home)
+# switch <- "stop RL-scheduler"
+# write_lines(switch, file = switch_home, append = FALSE)
+# Sys.sleep(time = 5)
+flog.info("RL-scheduler is gestopt", name = "nsbe_log")
 
+# bumper PL's maken ----
 if (nrow(bum.1) > 0) {
   
   bum_editor_list <- paste0("('", bum.1$user_id %>% str_flatten(collapse = "', '"), "')")
@@ -130,11 +135,20 @@ if (nrow(bum.1) > 0) {
   bum_wp_users <- dbGetQuery(conn = ns_con, statement = sqlstmt)
   bum.2 <- bum_wp_users %>% left_join(bum.1)
   
+  # # + disconnect DB 
+  # dbDisconnect(ns_con)
+  # flog.info("DB disconnected", name = "nsbe_log")
+  
   # + get ns slugss ----
   gs4_auth(email = "cz.teamservice@gmail.com")
   url_wp_gidsinfo <- "16DrvLEXi3mEa9AbSw28YBkYpCvyO1wXwBwaNi7HpBkA"
+  gd_wp_gidsinfo_header <- read_sheet(ss = url_wp_gidsinfo, sheet = "gids-info")
+  gd_wp_gidsinfo_header_NL <- gd_wp_gidsinfo_header %>% 
+    select(hdr_key = `key-modelrooster`, hdr_txt = `std.samenvatting-NL`)
+  gd_wp_gidsinfo_header_EN <- gd_wp_gidsinfo_header %>% 
+    select(hdr_key = `key-modelrooster`, hdr_txt = `std.samenvatting-EN`)
   gd_wp_gidsinfo_slugs_raw <- read_sheet(ss = url_wp_gidsinfo, sheet = "nipperstudio_slugs")
-  
+
   titel_slugs <- gd_wp_gidsinfo_slugs_raw %>% 
     select(starts_with("titel")) %>% 
     mutate(title_id = as.integer(titel_id)) %>% 
@@ -177,13 +191,13 @@ if (nrow(bum.1) > 0) {
                                      paste0("laag/af/", user_slug),
                                      paste0("hoog/af/", user_slug)))
   
-  # bumper folders ----
+  # + bumper folders ----
   bf_home <- "//uitzendmac-2/Data/Nipper/studiomontage/bumpers/"
   
   bf_bumpers <- tibble(bkey = "laag/over/", dir_transit_over_bumpers = paste0("bumper0", 1:5, "/")) %>% 
     add_row(bkey = "hoog/over/", dir_transit_over_bumpers = paste0("bumper0", 1:5, "/"))
   
-  # + audio = AAN ----
+  # + . audio = AAN ----
   bum_aan <- bum.4 %>% select(pl_name, title_slug, dir_transit_aan) %>% 
     mutate(dir_aan = paste0(bf_home, title_slug, "/", dir_transit_aan)) %>% 
     select(pl_name, ns_dir = dir_aan)
@@ -205,7 +219,7 @@ if (nrow(bum.1) > 0) {
     }
   }
   
-  # + audio = AF ----
+  # + . audio = AF ----
   bum_af <- bum.4 %>% select(pl_name, title_slug, dir_transit_af) %>% 
     mutate(dir_af = paste0(bf_home, title_slug, "/", dir_transit_af)) %>% 
     select(pl_name, ns_dir = dir_af)
@@ -227,7 +241,7 @@ if (nrow(bum.1) > 0) {
     }
   }
   
-  # + audio = OVER ----
+  # + . audio = OVER ----
   bum_over <- bum.4 %>% select(pl_name, title_slug, dir_transit_over) %>% 
     left_join(bf_bumpers, by = c("dir_transit_over" = "bkey")) %>% 
     mutate(dir_over = paste0(bf_home, title_slug, "/", dir_transit_over, dir_transit_over_bumpers)) %>% 
@@ -254,7 +268,7 @@ if (nrow(bum.1) > 0) {
   bum.3_err <- bum.3_err %>% distinct()
   bum.3 <- bum.3 %>% anti_join(bum.3_err)
 
-  # Bepaal playlist lengtes ----
+  # + Bepaal playlist lengtes ----
   playlists.6 <- playlists.5 %>% 
     group_by(pl_id, block_order, block_id) %>% 
     mutate(blokduur_sec = sum(length)) %>% ungroup()
@@ -265,7 +279,6 @@ if (nrow(bum.1) > 0) {
     
     duration_rlprg <- 3600L * as.numeric(str_sub(cur_pl, 15, 17)) / 60L
     
-    # + - rlprg.1 ----
     rlprg_file <- bum.3 %>% filter(pl_name == cur_pl) %>% 
       mutate(cur_duur_parm = paste0("Duration:", duration_rlprg)) %>% 
       select(cur_duur_parm) %>% 
@@ -277,7 +290,7 @@ if (nrow(bum.1) > 0) {
       mutate(bid = paste0("RL_BLK_", LETTERS[block_order])) %>% 
       select(vt_blok_letter = bid)
     
-    # _ . bumpervolgorde ---- 
+    # + bumpervolgorde ---- 
     bumper_stack <- faststack()
     
     bu_seq <- random_select(c(1:5), nrow(blokken) - 1)
@@ -291,6 +304,7 @@ if (nrow(bum.1) > 0) {
     #   mutate(locatie = paste0(home_vt_audio_mac, locatie)) %>% 
     #   select(locatie) 
     
+    # + blokken ---- 
     for (blok in blokken$vt_blok_letter) {
       cur_pres <- cur_pl %>% as_tibble %>% 
         mutate(
@@ -334,7 +348,7 @@ if (nrow(bum.1) > 0) {
       rlprg_file %<>% bind_rows(cur_pres, cur_tracks_in_blok)
     }
     
-    # slot ----
+    # + AF-blok ----
     cur_pres <- cur_pl %>% as_tibble %>% 
       mutate(
         duur = "",
@@ -354,7 +368,7 @@ if (nrow(bum.1) > 0) {
     
     cur_pl %<>% str_replace_all(pattern = "[.]", replacement = "-")
     
-    # zet de playlist in de programs-map van RL
+    # + write RL-playlists ----
     home_radiologik_playlists <- "C:/cz_salsa/nipper/temp_rlprg/"
     # home_radiologik_playlists <- paste0(home_prop("home_radiologik_win"), "Programs/")
     rlprg_file_name <- paste0(home_radiologik_playlists, cur_pl, ".rlprg")
@@ -363,17 +377,11 @@ if (nrow(bum.1) > 0) {
     
     flog.info("RL-playlist toegevoegd: %s", rlprg_file_name, name = "nsbe_log")
     
-    # RL-scheduler samenstellen ----
+    # + write RL-scheduler jobs ----
     build_rl_script(cur_pl)
   }
   
-  # Herstart RL-scheduler ----
-  # switch <- read_lines(file = switch_home)
-  # switch <- "start RL-scheduler"
-  # write_lines(switch, file = switch_home, append = FALSE)
-  # flog.info("RL-scheduler draait weer", name = "nsbe_log")
-  
-  # gids samenstellen ----
+  # + gids samenstellen ----
   flog.info("Gids bijwerken...", name = "nsbe_log")
   source("src/update_gids.R", encoding = "UTF-8")
   
@@ -447,5 +455,12 @@ if (nrow(bum.1) > 0) {
   
   dbDisconnect(ns_con)
 }
+
+# + start RL-scheduler ----
+flog.info("RL-scheduler starten...", name = "nsbe_log")
+# switch <- read_lines(file = switch_home)
+# switch <- "start RL-scheduler"
+# write_lines(switch, file = switch_home, append = FALSE)
+flog.info("RL-scheduler draait weer", name = "nsbe_log")
 
 flog.info("= = = = = NipperStudio stop = = = = =", name = "nsbe_log")

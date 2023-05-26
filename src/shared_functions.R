@@ -55,14 +55,14 @@ get_ns_conn <- function(db_env) {
     db_env <- "wpdev_mariadb"
   } 
   
-  flog.info(sprintf("Verbinden met Wordpress database %s ...", db_env), name = "nsbe_log")
+  flog.info(sprintf("Maak verbinding met WP-database %s", db_env), name = "nsbe_log")
   
   result <- tryCatch( {
     grh_con <- dbConnect(odbc::odbc(), db_env, timeout = 10, encoding = "CP850")
   },
   error = function(cond) {
-    flog.error(sprintf("Database %s onbereikbaar (if dev: check PuTTY)", db_env), name = "nsbe_log")
-    return("connection-error")
+    flog.error(sprintf("Verbinding mislukt: %s", cond$message), name = "nsbe_log")
+    return("Verbinding is mislukt")
   }
   )
   return(result)
