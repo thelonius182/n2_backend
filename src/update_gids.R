@@ -48,7 +48,7 @@ for (seg2 in 1:1) {
       group_by(pl_name) %>% summarise(werken_van = paste(componist, collapse = ", "))
     
     # sql_gidstekst <- sprintf("Werken van %s.\n<!--more-->\n\n", koptekst$werken_van)
-    sql_gidstekst <- "$#HEADER#$\n<!--more-->\n\n"
+    sql_gidstekst <- "@HEADER\n<!--more-->\n\n"
     
     regel <- '<style>td {padding: 6px; text-align: left;}</style>\n<table style="width: 100%;"><tbody>'
     sql_gidstekst <- paste0(sql_gidstekst, regel, "\n")
@@ -74,7 +74,16 @@ for (seg2 in 1:1) {
       sql_gidstekst <- paste0(sql_gidstekst, regel, "\n")
     }
     
-    regel <- '</tbody>\n</table>'
+    # muw logo ----
+    regel <- 
+'</tbody>\n</table>
+&nbsp;
+<a href="https://www.muziekweb.nl">
+<img class="aligncenter" src="https://wpdev2.concertzender.nl/wp-content/uploads/2023/05/dank_muw_logo.png" />
+</a>
+&nbsp;
+&nbsp;'
+    
     sql_gidstekst <- paste0(sql_gidstekst, regel, "\n") %>% str_replace_all("[']", "&#39;")
     
     upd_stmt01 <- sprintf(
@@ -83,17 +92,30 @@ for (seg2 in 1:1) {
     )
     dsSql01 <- dbGetQuery(ns_con, upd_stmt01)
     
+    # headers bepalen ----
+    hdr_nl_df <- bum.3 %>% 
+      mutate(hdr_key = sub(".*\\.\\d{3}_(.*)", "\\1", pl_name, perl=TRUE)) %>% 
+      left_join(gd_wp_gidsinfo_header_NL) %>% 
+      filter(pl_name == cur_pl)
+    
+    hdr_en_df <- bum.3 %>% 
+      mutate(hdr_key = sub(".*\\.\\d{3}_(.*)", "\\1", pl_name, perl=TRUE)) %>% 
+      left_join(gd_wp_gidsinfo_header_EN) %>% 
+      filter(pl_name == cur_pl)
+    
     for (u1 in 1:nrow(dsSql01)) {
       # upd_stmt02 <- sprintf(
       #   "update wp_posts set post_content = convert(cast('%s' as binary) using utf8mb4) where id = %s;",
       #   sql_gidstekst,
       #   as.character(dsSql01$id[u1])
       # )
-      sql_gidstekst <- sql_gidstekst %>% if_else(u1 == 1, 
-                                                 str_replace("$#HEADER#$", 
-                                                             "Een fijne mix met gestoofde ingrediënten."),
-                                                 str_replace("$#HEADER#$", 
-                                                             "A vegetable stew with different ingredients."))
+      
+      if (u1 == 1) {
+        sql_gidstekst <- sql_gidstekst %>% str_replace("@HEADER", hdr_nl_df$hdr_txt)
+      } else {
+        sql_gidstekst <- sql_gidstekst %>% str_replace("@HEADER", hdr_en_df$hdr_txt)
+      }
+      
       upd_stmt02 <- sprintf(
         "update wp_posts set post_content = '%s' where id = %s;",
         sql_gidstekst,

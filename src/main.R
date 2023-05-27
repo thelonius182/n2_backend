@@ -34,7 +34,6 @@ switch_home <- paste0(home_prop("home_schedulerswitch"), "nipper_msg.txt")
 gs4_auth(email = "cz.teamservice@gmail.com")
 
 # + connect to DB ----
-# ns_con <- dbConnect(odbc::odbc(), "wpdev_mariadb", timeout = 10, encoding = "CP850")
 ns_con <- get_ns_conn("DEV")
 
 stopifnot("WP-database is niet beschikbaar, zie C:/cz_salsa/Logs/nipperstudio_backend.log" = typeof(ns_con) == "S4")
@@ -139,14 +138,16 @@ if (nrow(bum.1) > 0) {
   # dbDisconnect(ns_con)
   # flog.info("DB disconnected", name = "nsbe_log")
   
-  # + get ns slugss ----
+  # + get WP-gidsinfo ----
   gs4_auth(email = "cz.teamservice@gmail.com")
   url_wp_gidsinfo <- "16DrvLEXi3mEa9AbSw28YBkYpCvyO1wXwBwaNi7HpBkA"
   gd_wp_gidsinfo_header <- read_sheet(ss = url_wp_gidsinfo, sheet = "gids-info")
   gd_wp_gidsinfo_header_NL <- gd_wp_gidsinfo_header %>% 
-    select(hdr_key = `key-modelrooster`, hdr_txt = `std.samenvatting-NL`)
+    select(hdr_key = `key-modelrooster`, hdr_txt = `std.samenvatting-NL`) %>% 
+    mutate(hdr_key = hdr_key %>% str_to_lower() %>% str_replace_all(pattern = " ", replacement = "_"))
   gd_wp_gidsinfo_header_EN <- gd_wp_gidsinfo_header %>% 
-    select(hdr_key = `key-modelrooster`, hdr_txt = `std.samenvatting-EN`)
+    select(hdr_key = `key-modelrooster`, hdr_txt = `std.samenvatting-EN`) %>% 
+    mutate(hdr_key = hdr_key %>% str_to_lower() %>% str_replace_all(pattern = " ", replacement = "_"))
   gd_wp_gidsinfo_slugs_raw <- read_sheet(ss = url_wp_gidsinfo, sheet = "nipperstudio_slugs")
 
   titel_slugs <- gd_wp_gidsinfo_slugs_raw %>% 
@@ -381,42 +382,19 @@ if (nrow(bum.1) > 0) {
     build_rl_script(cur_pl)
   }
   
-  # + gids samenstellen ----
+  # + gids bijwerken ----
   flog.info("Gids bijwerken...", name = "nsbe_log")
   source("src/update_gids.R", encoding = "UTF-8")
   
-  # MuW order forms ----
-  pl_forms <- bum.1 %>% anti_join(bum.3_err) %>% select(pl_name)
+  # + MuW audio order forms ----
+  form_pls <- bum.1 %>% anti_join(bum.3_err) %>% select(pl_name)
   
-  for (cur_pl_form in pl_forms$pl_name) {
+  for (cur_form_pl in form_pls$pl_name) {
     
-    cur_playlist <- ns_tracks %>% filter(pl_name == cur_pl_form)
-    
-    muw_aanvraag_file <- paste0("g:/salsa/muziekweb_aanvragen/", cur_pl_form, ".txt")
-    
-    if (file_exists(muw_aanvraag_file)) {
-      file_delete(muw_aanvraag_file)
-    }
-    
-    cur_muziekweb <- cur_playlist %>% select(recording_no) %>% 
-      separate(recording_no, into = paste0("muw_track", 1:15), sep = ", ", fill = "right")
-      mutate(muw_track_chr = as.character(muw_track)) %>% 
-      select(muw_album_id, muw_track_chr) %>% 
-      pivot_longer(names_to = "df_name", values_to = "order_line", cols = c("muw_album_id", "muw_track_chr")) %>% 
-      select(order_line)
-    
-    if (nrow(cur_muziekweb) > 0) {
-      write_lines(x = cur_muziekweb$order_line, file = muw_aanvraag_file, append = F)
-    }
+    create_form(cur_form_pl) 
   }
   
-  # playlists voltooid melden ----
-  # + connect to DB ----
-  ns_con <- get_ns_conn("DEV")
-  
-  stopifnot("WP-database is niet beschikbaar, zie C:/cz_salsa/Logs/nipperstudio_backend.log" = typeof(ns_con) == "S4")
-  flog.info("Verbonden!", name = "nsbe_log")
-
+  # + playlists voltooid melden ----
   pl_finshed <- bum.1 %>% anti_join(bum.3_err) %>% 
     mutate(pl_status = 2) %>% select(pl_name, pl_status) %>% 
     add_row(bum.3_err)

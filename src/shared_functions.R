@@ -111,3 +111,26 @@ get_bumper_audio <- function(pm_playlist, pm_blok, pm_stack) {
   
   return(fnam)
 }
+
+create_form <- function(arg_playlist) {
+  
+  order_form_name <- paste0("g:/salsa/muziekweb_aanvragen/", arg_playlist, ".txt")
+  
+  if (file_exists(order_form_name)) {
+    file_delete(order_form_name)
+  }
+  
+  cur_audio_ids <- ns_tracks %>% filter(pl_name == arg_playlist) %>% select(recording_no)
+  
+  cur_audio_ids_sep <- cur_audio_ids %>% 
+    separate(recording_no, into = paste0("muw_track", 1:15), sep = ", ", fill = "right") %>% 
+    pivot_longer(names_to = "track_key", values_to = "track_value", cols = starts_with("muw_")) %>% 
+    filter(!is.na(track_value)) %>% select(track_value) %>% 
+    separate(track_value, into = c("album_id", "track_id"), sep = "-") %>% 
+    mutate(track_id = as.character(as.integer(track_id))) %>% 
+    pivot_longer(names_to = "df_name", values_to = "order_line", cols = c("album_id", "track_id")) %>% 
+    select(order_line)
+  
+    write_lines(x = cur_audio_ids_sep$order_line, file = order_form_name, append = F)
+    flog.info(sprintf("Audio-bestelformulier gereed: %s", arg_playlist), name = "nsbe_log")
+}
