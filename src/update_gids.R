@@ -1,7 +1,7 @@
 # source("src/shared_functions.R", encoding = "UTF-8")
 
 for (seg2 in 1:1) {
-  # + connect to DB ----
+  # + connect to DB 
   # ns_con <- dbConnect(odbc::odbc(), "wpdev_mariadb", timeout = 10, encoding = "CP850")
   # ns_con <- get_ns_conn("DEV")
   # 
@@ -49,6 +49,13 @@ for (seg2 in 1:1) {
     
     # sql_gidstekst <- sprintf("Werken van %s.\n<!--more-->\n\n", koptekst$werken_van)
     sql_gidstekst <- "@HEADER\n<!--more-->\n\n"
+    
+    regel <- 
+'<a>
+<img class="aligncenter" src="https://wpdev2.concertzender.nl/wp-content/uploads/2023/05/rata_logo.png" />
+</a>
+&nbsp;'
+    sql_gidstekst <- paste0(sql_gidstekst, regel, "\n")
     
     regel <- '<style>td {padding: 6px; text-align: left;}</style>\n<table style="width: 100%;"><tbody>'
     sql_gidstekst <- paste0(sql_gidstekst, regel, "\n")
@@ -111,25 +118,25 @@ for (seg2 in 1:1) {
       # )
       
       if (u1 == 1) {
-        sql_gidstekst <- sql_gidstekst %>% str_replace("@HEADER", hdr_nl_df$hdr_txt)
+        sql_gidstekst1 <- sql_gidstekst %>% str_replace("@HEADER", hdr_nl_df$hdr_txt)
       } else {
-        sql_gidstekst <- sql_gidstekst %>% str_replace("@HEADER", hdr_en_df$hdr_txt)
+        sql_gidstekst1 <- sql_gidstekst %>% str_replace("@HEADER", hdr_en_df$hdr_txt)
       }
       
       upd_stmt02 <- sprintf(
         "update wp_posts set post_content = '%s' where id = %s;",
-        sql_gidstekst,
+        sql_gidstekst1,
         as.character(dsSql01$id[u1])
       )
       
       dbExecute(ns_con, upd_stmt02)
       
-      upd_stmt03 <- sprintf(
-        "insert into wp_postmeta (post_id, meta_key, meta_value) values(%s, '_thumbnail_id', %s);",
-        as.character(dsSql01$id[u1]),
-        as.character(463848L)
-      )
-      dbExecute(ns_con, upd_stmt03)
+      # upd_stmt03 <- sprintf(
+      #   "insert into wp_postmeta (post_id, meta_key, meta_value) values(%s, '_thumbnail_id', %s);",
+      #   as.character(dsSql01$id[u1]),
+      #   as.character(700821)
+      # )
+      # dbExecute(ns_con, upd_stmt03)
     }
     
     flog.info("Gids bijgewerkt: %s", cur_pl, name = "nsbe_log")

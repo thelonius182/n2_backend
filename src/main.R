@@ -116,7 +116,6 @@ bum.1 <- playlists.5 %>%
   filter(pl_transit %in% c("LOB", "HIB")) %>% 
   select(pl_name, user_id, title_id, pl_transit) %>% distinct()
 
-# TOT HIER ----
 # Stop RL-scheduler ----
 flog.info("RL-scheduler stoppen", name = "nsbe_log")
 # switch <- read_lines(file = switch_home)
@@ -124,6 +123,8 @@ flog.info("RL-scheduler stoppen", name = "nsbe_log")
 # write_lines(switch, file = switch_home, append = FALSE)
 # Sys.sleep(time = 5)
 flog.info("RL-scheduler is gestopt", name = "nsbe_log")
+
+# manually: TOT HIER ----
 
 # bumper PL's maken ----
 if (nrow(bum.1) > 0) {
@@ -140,16 +141,27 @@ if (nrow(bum.1) > 0) {
   
   # + get WP-gidsinfo ----
   gs4_auth(email = "cz.teamservice@gmail.com")
-  url_wp_gidsinfo <- "16DrvLEXi3mEa9AbSw28YBkYpCvyO1wXwBwaNi7HpBkA"
-  gd_wp_gidsinfo_header <- read_sheet(ss = url_wp_gidsinfo, sheet = "gids-info")
+  gd_wp_gidsinfo_header <- gd_wp_gidsinfo("gids-info")
+  
+  if (typeof(gd_wp_gidsinfo_header) != "list") {
+    stop("WP-gidsinfo op GD niet bereikbaar, zie log")
+  }
+  
+  # + . gids koppen ----
   gd_wp_gidsinfo_header_NL <- gd_wp_gidsinfo_header %>% 
     select(hdr_key = `key-modelrooster`, hdr_txt = `std.samenvatting-NL`) %>% 
     mutate(hdr_key = hdr_key %>% str_to_lower() %>% str_replace_all(pattern = " ", replacement = "_"))
   gd_wp_gidsinfo_header_EN <- gd_wp_gidsinfo_header %>% 
     select(hdr_key = `key-modelrooster`, hdr_txt = `std.samenvatting-EN`) %>% 
     mutate(hdr_key = hdr_key %>% str_to_lower() %>% str_replace_all(pattern = " ", replacement = "_"))
-  gd_wp_gidsinfo_slugs_raw <- read_sheet(ss = url_wp_gidsinfo, sheet = "nipperstudio_slugs")
-
+  
+  # + . gids slugs ----
+  gd_wp_gidsinfo_slugs_raw <- gd_wp_gidsinfo("nipperstudio_slugs")
+  
+  if (typeof(gd_wp_gidsinfo_slugs_raw) != "list") {
+    stop("WP-gidsinfo op GD niet bereikbaar, zie log")
+  }
+  
   titel_slugs <- gd_wp_gidsinfo_slugs_raw %>% 
     select(starts_with("titel")) %>% 
     mutate(title_id = as.integer(titel_id)) %>% 

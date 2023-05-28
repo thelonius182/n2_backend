@@ -134,3 +134,15 @@ create_form <- function(arg_playlist) {
     write_lines(x = cur_audio_ids_sep$order_line, file = order_form_name, append = F)
     flog.info(sprintf("Audio-bestelformulier gereed: %s", arg_playlist), name = "nsbe_log")
 }
+
+gd_wp_gidsinfo <- function(arg_sheet) {
+  result <- tryCatch( {
+    gds <- read_sheet(ss = "16DrvLEXi3mEa9AbSw28YBkYpCvyO1wXwBwaNi7HpBkA", sheet = arg_sheet)
+  },
+  error = function(cond) {
+    flog.error(sprintf("Verbinding met GoogleDrive (WP-gidsinfo) mislukt: %s", cond$message), name = "nsbe_log")
+    return("GD-error")
+  }
+  )
+  return(result)
+}
