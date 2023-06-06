@@ -7,7 +7,7 @@ pacman::p_load(knitr, rmarkdown, RCurl, readr, futile.logger, DBI, officer, httr
 
 fa <- flog.appender(appender.file("c:/cz_salsa/Logs/nipperstudio_backend.log"), name = "nsbe_log")
 flog.info("
-= = = = = NipperStudio start = = = = =", name = "nsbe_log")
+= = = = = NipperStudio start (versie 2023-06-06 23:56) = = = = =", name = "nsbe_log")
 
 home_prop <- function(prop) {
   prop_name <- paste0(prop, ".", host)
@@ -17,7 +17,7 @@ home_prop <- function(prop) {
 }
 
 # Init ----
-config <- read_yaml("config_nip_nxt.yaml")
+config <- read_yaml("config_nip_stu.yaml")
 rds_home <- "C:/cz_salsa/cz_exchange/"
 filter <- dplyr::filter # voorkom verwarring met stats::filter
 
@@ -34,7 +34,7 @@ switch_home <- paste0(home_prop("home_schedulerswitch"), "nipper_msg.txt")
 gs4_auth(email = "cz.teamservice@gmail.com")
 
 # + connect to DB ----
-ns_con <- get_ns_conn("DEV")
+ns_con <- get_ns_conn("PRD")
 
 stopifnot("WP-database is niet beschikbaar, zie C:/cz_salsa/Logs/nipperstudio_backend.log" = typeof(ns_con) == "S4")
 flog.info("Verbonden!", name = "nsbe_log")
@@ -99,7 +99,8 @@ playlists.5 <- playlists.3 %>% filter(pl_state == 1)
 
 # niets aangeboden: stop ----
 if (nrow(playlists.4) == 0) {
-  flog.info("Geen nieuwe playlists gevonden", name = "nsbw_log")
+  flog.info("Geen nieuwe playlists gevonden, DB-verbinding beëindigen", name = "nsbe_log")
+  dbDisconnect(ns_con)
   flog.info("= = = = = NipperStudio stop = = = = =", name = "nsbe_log")
   stopifnot("Geen nieuwe playlists gevonden" = nrow(playlists.4) > 0)
 }

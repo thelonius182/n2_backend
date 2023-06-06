@@ -52,7 +52,7 @@ get_ns_conn <- function(db_env) {
   if (db_env == "DEV") {
     db_env <- "wpdev_mariadb"
   } else if (db_env == "PRD") {
-    db_env <- "wpdev_mariadb"
+    db_env <- "wpprd_mariadb"
   } 
   
   flog.info(sprintf("Maak verbinding met WP-database %s", db_env), name = "nsbe_log")

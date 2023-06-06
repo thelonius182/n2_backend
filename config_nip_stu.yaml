@@ -1,0 +1,34 @@
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+# NV-pairs voor NipperNext
+# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+toolbox: "g:/R_proj_gergiev/released/salsa_toolbox_r/src/salsa_toolbox.R"
+uitzendmac_gewijzigd: FALSE
+filemaker_gewijzigd: FALSE
+# nipper_werk: "/Users/nipper/r_projects/cz_nipper/resources/nipper_werk.tab"
+# home_draaiboeken: "//MACSERVER/Server RAID disk/Shared Items/Kantoor/PROGRAMMAS/Presentatie&Techniek/Programmaformulieren/01_nipper_draaiboeken"
+home_draaiboeken: "//192.168.1.81/Server RAID disk/Shared Items/Kantoor/PROGRAMMAS/Presentatie&Techniek/Programmaformulieren/01_nipper_draaiboeken/"
+# nip_xpr_gd_reg: "Nipper Express 0.2.FoSa"
+nip_nxt_gd_reg: "NipperNext"
+
+# host: "logmac"
+host: "uzmtwo"
+
+url_pfx: "docs.google.com/spreadsheets/d/"
+url_nipper_next: "1U1aKx5CgZXfuQ3p491PFWKZWSE2TL87m1RErdleuMvQ"
+
+cz_rds_store: "C:/Users/nipper/cz_rds_store/branches/cz_gdrive/"
+gs_downloads: "C:/Users/nipper/Downloads/cz_downloads"
+
+home_vt_audio_mac.logmac: "/Volumes/Log schijf/" # mac-to-mac
+home_vt_audio_mac.uzmtwo: "/Volumes/Data/"
+home_vt_audio_win.logmac: "//LOGMAC/Log schijf/" # win-to-mac
+home_vt_audio_win.uzmtwo: "//UITZENDMAC-2/Data/"
+
+home_radiologik.logmac: "//LOGMAC/Radiologik--preview/"
+home_radiologik_win.uzmtwo: "//UITZENDMAC-2/macOS/Users/tech_1/Music/Radiologik/"
+home_radiologik_mac.uzmtwo: "/Volumes/macOS/Users/tech_1/Music/Radiologik/"
+
+home_schedulerswitch.logmac: "//LOGMAC/tech/Documents/Salsa/nipper_ctl"
+home_schedulerswitch.uzmtwo: "//UITZENDMAC-2/macOS/Users/tech_1/Documents/Salsa/nipper_ctl/"
+
+# gids_samenvatting: "Van Lully in de Lente tot Kurt Weill in de Winter.<br><br>Muziek uit het Rijk van Randewijk.<!--more-->"
