@@ -93,10 +93,6 @@ playlists.3 <- playlists.2 %>%
   left_join(tracks.1) %>% 
   select(-datetime_created, -track_number, -deleted)
 
-# log aangeboden playlists TEST
-# playlists.4 <- playlists.3 %>% filter(pl_id == 26) %>% select(pl_name, post_id) %>% distinct()
-# playlists.5 <- playlists.3 %>% filter(pl_id == 26)
-
 # log aangeboden playlists ----
 playlists.4 <- playlists.3 %>% filter(pl_state == 1) %>% select(pl_name, post_id) %>% distinct()
 playlists.5 <- playlists.3 %>% filter(pl_state == 1)
@@ -121,8 +117,6 @@ bum.1 <- playlists.5 %>%
   filter(pl_transit %in% c("LOB", "HIB")) %>% 
   select(pl_name, user_id, title_id, pl_transit) %>% distinct()
 
-# manually: TOT HIER ----
-
 # Stop RL-scheduler ----
 flog.info("RL-scheduler stoppen", name = "nsbe_log")
 switch <- read_lines(file = switch_home)
@@ -130,6 +124,8 @@ switch <- "stop RL-scheduler"
 write_lines(switch, file = switch_home, append = FALSE)
 Sys.sleep(time = 5)
 flog.info("RL-scheduler is gestopt", name = "nsbe_log")
+
+# manually: TOT HIER ----
 
 # bumper PL's maken ----
 if (nrow(bum.1) > 0) {
@@ -345,11 +341,9 @@ if (nrow(bum.1) > 0) {
       
       cur_tracks_in_blok <- cur_pl_nieuw %>% 
         filter(pl_name == cur_pl & block_order == cur_block_order) %>% 
-        # if recording_no has several tracks, put each track in a separate row
-        separate_rows(recording_no, sep = ", ") %>% 
         mutate(
           duur = "",
-          audiofile = paste0("file:///Volumes/Data/Nipper/muziekweb_audio/", recording_no, ".wav"),
+          audiofile = paste0("file:///Volumes/Data/Nipper/muziekweb_audio/", recording_no),
           const_false = "FALSE",
           start_sec_sinds_middernacht = -1, # "direct erna afspelen"
           fwdtab1 = "",

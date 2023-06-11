@@ -125,8 +125,8 @@ build_rl_script <- function(arg_playlist) {
   
   # zet de startscripts voor de playlists in de schedules-map van RL, naam begint met
   # een volgnummer: 1 + <aantal scripts in deze map>
-  home_radiologik_schedules <- "C:/cz_salsa/nipper/temp_rlprg/"
-  # home_radiologik_schedules <- paste0(home_prop("home_radiologik_win"), "Schedule/")
+  # home_radiologik_schedules <- "C:/cz_salsa/nipper/temp_rlprg/"
+  home_radiologik_schedules <- paste0(home_prop("home_radiologik_win"), "Schedule/")
   nrow_schedules <- 1L + dir_ls(path = home_radiologik_schedules) %>% 
     as_tibble() %>% nrow
   
