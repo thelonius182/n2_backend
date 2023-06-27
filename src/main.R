@@ -5,9 +5,9 @@ pacman::p_load(knitr, rmarkdown, RCurl, readr, futile.logger, DBI, officer, httr
                xml2, tidyverse, keyring, googlesheets4, yaml, fs, magrittr, hms,
                lubridate, zip, stringr, fastmap)
 
-fa <- flog.appender(appender.file("c:/cz_salsa/Logs/nipperstudio_backend.log"), name = "nsbe_log")
+fa <- flog.appender(appender.file("c:/cz_salsa/Logs/ns_bum_vot.log"), name = "nsbe_log")
 flog.info("
-= = = = = NipperStudio start (versie 2023-06-06 23:56) = = = = =", name = "nsbe_log")
+= = = = = NipperStudio start (versie 2023-06-26 22:18) = = = = =", name = "nsbe_log")
 
 home_prop <- function(prop) {
   prop_name <- paste0(prop, ".", host)
@@ -121,6 +121,11 @@ bum.1 <- playlists.5 %>%
   filter(pl_transit %in% c("LOB", "HIB")) %>% 
   select(pl_name, user_id, title_id, pl_transit) %>% distinct()
 
+# check VOT ----
+vot.1 <- playlists.5 %>% 
+  filter(pl_transit == "VOT") %>% 
+  select(pl_name, user_id, title_id, pl_transit) %>% distinct()
+
 # manually: TOT HIER ----
 
 # Stop RL-scheduler ----
@@ -196,7 +201,7 @@ if (nrow(bum.1) > 0) {
   
   if (nrow(bum.3_err) > 0) {
     pl_in_err <- str_flatten(bum.3_err$pl_name, collapse = "\n")
-    flog.info(paste0("Bumperregistratie van redacteur en/of pgm-titel is incompleet:\n",
+    flog.info(paste0("Registratie van redacteur en/of pgm-titel is incompleet:\n",
                      pl_in_err, "\nZie WP-gidsinfo/nipperstudio_slugs"), name = "nsbe_log")
     bum.3 <- bum.3 %>% anti_join(bum.3_err)
   }
@@ -450,8 +455,230 @@ if (nrow(bum.1) > 0) {
     flog.info(paste0("Mislukt: ", pl_failed_str), name = "nsbe_log")
   }
   
-  dbDisconnect(ns_con)
+  # dbDisconnect(ns_con)
 }
+
+# voice track PL's maken ----
+if (nrow(vot.1) > 0) {
+  
+  vot_editor_list <- paste0("('", vot.1$user_id %>% str_flatten(collapse = "', '"), "')")
+  sqlstmt <- sprintf("select display_name as user_name, id as user_id from wp_users where id in %s;", 
+                     vot_editor_list)
+  vot_wp_users <- dbGetQuery(conn = ns_con, statement = sqlstmt)
+  vot.2 <- vot_wp_users %>% left_join(vot.1)
+  
+  # # + disconnect DB 
+  # dbDisconnect(ns_con)
+  # flog.info("DB disconnected", name = "nsbe_log")
+  
+  # + get WP-gidsinfo ----
+  gs4_auth(email = "cz.teamservice@gmail.com")
+  gd_wp_gidsinfo_header <- gd_wp_gidsinfo("gids-info")
+  
+  if (typeof(gd_wp_gidsinfo_header) != "list") {
+    stop("WP-gidsinfo op GD niet bereikbaar, zie log")
+  }
+  
+  # + . gids koppen ----
+  gd_wp_gidsinfo_header_NL <- gd_wp_gidsinfo_header %>% 
+    select(hdr_key = `key-modelrooster`, hdr_txt = `std.samenvatting-NL`) %>% 
+    mutate(hdr_key = hdr_key %>% str_to_lower() %>% str_replace_all(pattern = " ", replacement = "_"))
+  gd_wp_gidsinfo_header_EN <- gd_wp_gidsinfo_header %>% 
+    select(hdr_key = `key-modelrooster`, hdr_txt = `std.samenvatting-EN`) %>% 
+    mutate(hdr_key = hdr_key %>% str_to_lower() %>% str_replace_all(pattern = " ", replacement = "_"))
+  
+  # + . gids slugs ----
+  gd_wp_gidsinfo_slugs_raw <- gd_wp_gidsinfo("nipperstudio_slugs")
+  
+  if (typeof(gd_wp_gidsinfo_slugs_raw) != "list") {
+    stop("WP-gidsinfo op GD niet bereikbaar, zie log")
+  }
+  
+  titel_slugs <- gd_wp_gidsinfo_slugs_raw %>% 
+    select(starts_with("titel")) %>% 
+    mutate(title_id = as.integer(titel_id)) %>% 
+    filter(!is.na(title_id))
+  
+  redacteur_slugs <- gd_wp_gidsinfo_slugs_raw %>% 
+    select(starts_with("redacteur")) %>% 
+    mutate(user_id = as.integer(redacteur_id)) %>% 
+    filter(!is.na(user_id))
+  
+  vot.3 <- vot.2 %>% 
+    left_join(titel_slugs) %>% 
+    left_join(redacteur_slugs) %>% 
+    select(pl_name,
+           user_id,
+           user_name,
+           user_slug = redacteur_slug,
+           title_id,
+           title_name = titel,
+           title_slug = titel_slug,
+           pl_transit)
+  
+  vot.3_err <- vot.3 %>% 
+    filter(is.na(user_slug) | is.na(title_slug)) %>% 
+    select(pl_name) %>% 
+    mutate(pl_status = 3L)
+  
+  if (nrow(vot.3_err) > 0) {
+    pl_in_err <- str_flatten(vot.3_err$pl_name, collapse = "\n")
+    flog.info(paste0("Registratie van redacteur en/of pgm-titel is incompleet:\n",
+                     pl_in_err, "\nZie WP-gidsinfo/nipperstudio_slugs"), name = "nsbe_log")
+    vot.3 <- vot.3 %>% anti_join(vot.3_err)
+  }
+
+  # + Bepaal playlist lengtes ----
+  playlists.6 <- playlists.5 %>% 
+    group_by(pl_id, block_order, block_id) %>% 
+    mutate(blokduur_sec = sum(length)) %>% ungroup()
+  
+  # DAN TOT HIER ----
+  audio_locaties <- read_sheet(ss = config$url_nipper_next, sheet = "audio_locaties")
+  
+  for (cur_pl in vot.3$pl_name) {
+    
+    duration_rlprg <- 3600L * as.numeric(str_sub(cur_pl, 15, 17)) / 60L
+    
+    rlprg_file <- vot.3 %>% filter(pl_name == cur_pl) %>% 
+      mutate(cur_duur_parm = paste0("Duration:", duration_rlprg)) %>% 
+      select(cur_duur_parm) %>% 
+      unite(col = regel, sep = "\t")
+    
+    cur_pl_nieuw <- playlists.6 %>% filter(pl_name == cur_pl)
+    
+    blokken <- cur_pl_nieuw %>% select(post_id, block_order) %>% distinct() %>% 
+      mutate(bid = paste0("NS", post_id, LETTERS[block_order])) %>% 
+      select(vt_blok_letter = bid)
+    
+    sluitletter <- paste0("NS", cur_pl_nieuw$post_id, LETTERS[1 + nrow(blokken)]) %>% unique()
+    sluitblok <- sluitletter %>% as_tibble %>% setNames("vt_blok_letter")
+    blokken %<>% bind_rows(sluitblok) 
+    
+    playlist_id_df <- cur_pl_nieuw %>% 
+      mutate(post_id_chr = as.character(post_id),
+             plid = as.integer(post_id_chr)) %>% slice(1)
+    
+    playlist_id <- playlist_id_df$plid
+    
+    vt_blok_pad <- audio_locaties %>% filter(sleutel == "vt_blok", functie == "pres_blok") %>% 
+      mutate(locatie = paste0(home_vt_audio_mac, locatie)) %>% 
+      select(locatie) 
+
+    # + blokken ---- 
+    for (blok in blokken$vt_blok_letter) {
+      cur_pres <- cur_pl %>% as_tibble %>% 
+        mutate(
+          duur = "",
+          audiofile = paste0("file://", vt_blok_pad, blok, ".aif"),
+          const_false = "FALSE",
+          start_sec_sinds_middernacht = if_else(str_detect(blok, pattern = ".*_A$"),
+                                                cur_pl_nieuw$pl_start[1] * 3600L,
+                                                -1L), # -1 = direct erna afspelen
+          fwdtab1 = "",
+          fwdtab2 = "",
+          fwdtab3 = "",
+          speler_regel01 = "voicetracking",
+          opname_hfd_sub = "",
+          speler_regel02 = paste0("blok ", blok)) %>% 
+        select(-value) %>% 
+        unite(col = regel, sep = "\t")
+    
+      cur_block_order <- match(blok, blokken$vt_blok_letter)
+      
+      cur_tracks_in_blok <- cur_pl_nieuw %>% 
+        filter(pl_name == cur_pl & block_order == cur_block_order) %>% 
+        # if recording_no has several tracks, put each track in a separate row
+        separate_rows(recording_no, sep = ", ") %>% 
+        mutate(
+          duur = "",
+          audiofile = paste0("file:///Volumes/Data/Nipper/muziekweb_audio/", recording_no, ".wav"),
+          const_false = "FALSE",
+          start_sec_sinds_middernacht = -1, # "direct erna afspelen"
+          fwdtab1 = "",
+          fwdtab2 = "",
+          fwdtab3 = "",
+          speler_regel01 = componist,
+          opname_hfd_sub = blokken$vt_blok_letter[cur_block_order],
+          # opname_hfd_sub = paste0("NS", post_id[1], 
+          #                         "-", 
+          #                         blokken$vt_blok_letter[cur_block_order]),
+          speler_regel02 = titel
+        ) %>% 
+        select(duur, audiofile, const_false, start_sec_sinds_middernacht, 
+               fwdtab1, fwdtab2, fwdtab3, speler_regel01, opname_hfd_sub, speler_regel02) %>% 
+        unite(col = regel, sep = "\t")
+      
+      rlprg_file %<>% bind_rows(cur_pres, cur_tracks_in_blok)
+    }
+    
+    cur_pl %<>% str_replace_all(pattern = "[.]", replacement = "-")
+    
+    # + write RL-playlists ----
+    # home_radiologik_playlists <- "C:/cz_salsa/nipper/temp_rlprg/"
+    home_radiologik_playlists <- paste0(home_prop("home_radiologik_win"), "Programs/")
+    rlprg_file_name <- paste0(home_radiologik_playlists, cur_pl, ".rlprg")
+    write.table(x = rlprg_file, file = rlprg_file_name, row.names = FALSE, col.names = FALSE, 
+                sep = "\t", quote = FALSE, fileEncoding = "UTF-8") 
+    
+    flog.info("RL-playlist toegevoegd: %s", rlprg_file_name, name = "nsbe_log")
+    
+    # + write RL-scheduler jobs ----
+    build_rl_script(cur_pl)
+  }
+  
+  # + gids bijwerken ----
+  flog.info("Gids bijwerken...", name = "nsbe_log")
+  source("src/update_gids.R", encoding = "UTF-8")
+  
+  # + MuW audio order forms ----
+  form_pls <- vot.1 %>% anti_join(vot.3_err) %>% select(pl_name)
+  
+  for (cur_form_pl in form_pls$pl_name) {
+    
+    create_form(cur_form_pl) 
+  }
+  
+  # + playlists voltooid melden ----
+  pl_finshed <- vot.1 %>% anti_join(vot.3_err) %>% 
+    mutate(pl_status = 2) %>% select(pl_name, pl_status) %>% 
+    add_row(vot.3_err)
+  
+  # + . geslaagd ----
+  pl_passed <- pl_finshed %>% filter(pl_status == 2) %>% select(pl_name)
+  
+  if (nrow(pl_passed) > 0) {
+    
+    pl_passed_str <- paste0("('",
+                            str_flatten(string = pl_passed$pl_name, collapse = "', '"),
+                            "')")
+    sql_stmt <- sprintf("update wp_nipper_main_playlists set finished = 2 where playlist_name in %s",
+                        pl_passed_str)
+    
+    dbExecute(conn = ns_con, statement = sql_stmt)
+    
+    flog.info(paste0("Geslaagd: ", pl_passed_str), name = "nsbe_log")
+  }
+
+  # + . mislukt ----
+  pl_failed <- pl_finshed %>% filter(pl_status == 3) %>% select(pl_name)
+  
+  if (nrow(pl_failed) > 0) {
+    
+    pl_failed_str <- paste0("('",
+                            str_flatten(string = pl_failed$pl_name, collapse = "', '"),
+                            "')")
+    sql_stmt <- sprintf("update wp_nipper_main_playlists set finished = 3 where playlist_name in %s",
+                        pl_failed_str)
+    
+    dbExecute(conn = ns_con, statement = sql_stmt)
+    
+    flog.info(paste0("Mislukt: ", pl_failed_str), name = "nsbe_log")
+  }
+  
+}
+
+dbDisconnect(ns_con)
 
 # + start RL-scheduler ----
 flog.info("RL-scheduler starten...", name = "nsbe_log")
