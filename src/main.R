@@ -7,7 +7,7 @@ pacman::p_load(knitr, rmarkdown, RCurl, readr, futile.logger, DBI, officer, httr
 
 fa <- flog.appender(appender.file("c:/cz_salsa/Logs/ns_bum_vot.log"), name = "nsbe_log")
 flog.info("
-= = = = = NipperStudio start (versie 2023-06-26 22:18) = = = = =", name = "nsbe_log")
+= = = = = NipperStudio start (versie 2023-07-08 12:48) = = = = =", name = "nsbe_log")
 
 home_prop <- function(prop) {
   prop_name <- paste0(prop, ".", host)
@@ -23,6 +23,7 @@ filter <- dplyr::filter # voorkom verwarring met stats::filter
 
 source(config$toolbox, encoding = "UTF-8") # functions only
 source("src/compile_schedulerscript.R", encoding = "UTF-8") # functions only 
+source("src/compile_hostscript_docx.R", encoding = "UTF-8") # functions only 
 source("src/shared_functions.R", encoding = "UTF-8") # functions only 
 
 host <- config$host
@@ -46,7 +47,7 @@ flog.info("Verbonden!", name = "nsbe_log")
 query <- "select * from wp_nipper_main_playlists"
 playlists_db <- dbGetQuery(conn = ns_con, statement = query)
 playlists.1 <- playlists_db %>% 
-  filter(deleted == 0) %>% 
+  filter(deleted == 0 & finished == 1) %>% 
   select(pl_id = id,
          pl_date = program_date,
          pl_start = time_start,
@@ -623,8 +624,11 @@ if (nrow(vot.1) > 0) {
     
     flog.info("RL-playlist toegevoegd: %s", rlprg_file_name, name = "nsbe_log")
     
-    # + write RL-scheduler jobs ----
+    # + create RL-scheduler jobs ----
     build_rl_script(cur_pl)
+    
+    # + create host scripts ----
+    build_host_script(cur_pl_nieuw$pl_name[1])
   }
   
   # + gids bijwerken ----

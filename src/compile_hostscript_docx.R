@@ -1,91 +1,86 @@
-library(officer)
-library(magrittr)
+pacman::p_load(officer, magrittr)
 
-np_sec2hms <- function(duur_sec) {
-  result <- paste0("00:00:", duur_sec) %>% 
-    hms(roll = TRUE) 
-  result <- sprintf("%02d:%02d:%02d", result@hour, result@minute, result@.Data)
-}
-
-draaiboek <- pl_werken %>%
-  arrange(playlist, vt_blok_letter, vt_blok_nr)
-
-drbk <- pl_werken %>%
-  group_by(playlist, vt_blok_letter) %>% 
-  summarise(bloklengte = sum(lengte_sec)) %>% 
-  mutate(bloklengte = bloklengte + 40, # per blok 40 seconden presentatie
-         cum_lengte = cumsum(as.integer(bloklengte)))
-
-drbk$cum_lengte <- np_sec2hms(drbk$cum_lengte)
-drbk$bloklengte_hms <- np_sec2hms(drbk$bloklengte)
-
-distinct_playlists <- unique(pl_werken$playlist)
-drb_template <- "C:/cz_salsa/np_template1.docx"
-
-for (d_pls in distinct_playlists) {
+build_host_script <- function(arg_pl_name) {
   
-  ### TEST
-  # d_pls <- "20220216_wo08.060_een_vroege_wandeling"
-  ### TEST
+  draaiboek <- playlists.6 %>% filter(pl_name == arg_pl_name) %>% arrange(block_order, track_order)
   
-  drb_naam <- paste0(d_pls, ".docx")
-
-  drb <- draaiboek %>% dplyr::filter(playlist == d_pls) %>% 
-    left_join(drbk, by = c("playlist", "vt_blok_letter")) %>% 
-    left_join(pl_nieuw, by = c("playlist"))
+  blokken <- draaiboek %>% select(post_id, block_order) %>% distinct() %>% 
+    mutate(vt_blok = paste0("NS", post_id, LETTERS[block_order]))
   
-  drb_doc <- read_docx(drb_template) %>% body_add_par(d_pls, style = "drb_titel")
+  draaiboek.1 <- draaiboek %>% inner_join(blokken)
   
-  drb_blokken <- drb %>% 
-    select(vt_blok_letter, bloklengte_hms, cum_lengte, playlist_id) %>% distinct
+  dbk <- draaiboek.1 %>% distinct(vt_blok, .keep_all = T) %>% 
+    group_by(vt_blok) %>% 
+    summarise(bloklengte = sum(blokduur_sec)) %>% 
+    mutate(bloklengte = bloklengte + 40, # per blok 40 seconden presentatie
+           cum_lengte = cumsum(as.integer(bloklengte)))
   
-  for (p1 in 1:nrow(drb_blokken)) {
+  dbk$cum_lengte <- np_sec2hms(dbk$cum_lengte)
+  dbk$bloklengte_hms <- np_sec2hms(dbk$bloklengte)
+  
+  dbk_template <- "C:/cz_salsa/np_template1.docx"
+  
+  dbk_naam <- paste0(draaiboek.1$pl_name[1], ".docx")
+  
+  draaiboek.3 <- draaiboek.1 %>% left_join(dbk) 
+  
+  dbk_doc <- read_docx(dbk_template) %>% 
+    body_add_par(draaiboek.1$pl_name[1], style = "drb_titel")
+  
+  dbk_blokken <- dbk %>% 
+    select(vt_blok, bloklengte_hms, cum_lengte) %>% distinct()
+  
+  for (p1 in 1:nrow(dbk_blokken)) {
     # Blok A <lengte> <lengte_cum>
     alinea <- sprintf("Blok %s: %s (eindigt %s)", 
-                      drb_blokken$vt_blok_letter[p1], 
-                      drb_blokken$bloklengte_hms[p1],
-                      drb_blokken$cum_lengte[p1])
-    drb_doc %>% body_add_par(alinea, style = "drb_blok") 
+                      dbk_blokken$vt_blok[p1], 
+                      dbk_blokken$bloklengte_hms[p1],
+                      dbk_blokken$cum_lengte[p1])
+    
+    dbk_doc %>% body_add_par(alinea, style = "drb_blok") 
     
     # voicetrack audiofile
-    alinea <- sprintf("VoiceTrack: ../Nipper/studiomontage/vt_clips/%s_%s.aif", 
-                      drb_blokken$playlist_id[p1],
-                      match(drb_blokken$vt_blok_letter[p1], LETTERS))
-    drb_doc %>% body_add_par(alinea, style = "drb_vt_value")
+    alinea <- sprintf("VoiceTrack: <vt_clips_folder>/%s.aif", dbk_blokken$vt_blok[p1])
+    dbk_doc %>% body_add_par(alinea, style = "drb_vt_value")
     
     # tracks dit blok
     # drb_tracks <- drb %>% filter(vt_blok_letter == "B")
-    drb_tracks <- drb %>% dplyr::filter(vt_blok_letter == drb_blokken$vt_blok_letter[p1]) 
-    n_tracks <- nrow(drb_tracks)
+    dbk_tracks <- draaiboek.3 %>% filter(vt_blok == dbk_blokken$vt_blok[p1]) 
+    n_tracks <- nrow(dbk_tracks)
     
-    for (p2 in 1:nrow(drb_tracks)) {
+    for (p2 in 1:nrow(dbk_tracks)) {
       alinea <- sprintf("track %s (%s)", 
-                        drb_tracks$vt_blok_nr[p2],
-                        drb_tracks$lengte_hms[p2])
-      drb_doc %>% body_add_par(alinea, style = "drb_track_hdr")
+                        dbk_tracks$recording_no[p2],
+                        np_sec2hms(dbk_tracks$length[p2]))
+      dbk_doc %>% body_add_par(alinea, style = "drb_track_hdr")
       
-      drb_doc %>% body_add_par(drb_tracks$titel[p2], style = "drb_alinea")
+      dbk_doc %>% body_add_par(dbk_tracks$titel[p2], style = "drb_alinea")
       
-      alinea <- sprintf("%s",
-                        drb_tracks$componist[p2])
-      drb_doc %>% body_add_par(alinea, style = "drb_alinea")
+      alinea <- sprintf("%s", dbk_tracks$componist[p2])
+      dbk_doc %>% body_add_par(alinea, style = "drb_alinea")
       
-      drb_doc %>% body_add_par(drb_tracks$uitvoerenden[p2], style = "drb_alinea")
+      dbk_doc %>% body_add_par(dbk_tracks$uitvoerenden[p2], style = "drb_alinea")
     }
   }
   
   # voicetrack audiofile slot
-  alinea <- sprintf("VoiceTrack: ../Nipper/studiomontage/vt_clips/%s_%s.aif", 
-                    drb_blokken$playlist_id[p1],
-                    nrow(drb_blokken) + 1)
+  slot_blok <-
+    str_replace(dbk_blokken$vt_blok[p1], 
+                "(.*)(\\w)", 
+                paste0("\\1", 
+                       LETTERS[match(str_sub(dbk_blokken$vt_blok[p1], -1), LETTERS) + 1])
+    )
   
-  suppressMessages(drb_doc %>% body_add_par("Blok - slot", style = "drb_blok") %>% 
-    body_add_par(alinea, style = "drb_vt_value"))
+  alinea <- sprintf("VoiceTrack: <vt_clips_folder>/%s.aif", slot_blok)
+  
+  suppressMessages(dbk_doc %>% 
+                     body_add_par("Blok - slot", style = "drb_blok") %>% 
+                     body_add_par(alinea, style = "drb_vt_value"))
   
   # draaiboek exporteren
-  drb_doc %>% cursor_begin() %>% body_remove() %>%
-    print(target = paste0(config$home_draaiboeken, drb_naam))
-    # print(target = paste0("resources/draaiboeken/", drb_naam))
+  dbk_doc %>% cursor_begin() %>% body_remove() %>%
+    print(target = paste0(config$home_draaiboeken, dbk_naam))
   
-  flog.info("Draaiboek toegevoegd: %s", drb_naam, name = "nipperlog")
+  flog.info("Draaiboek toegevoegd: %s", dbk_naam, name = "nipperlog")
+  
 }
