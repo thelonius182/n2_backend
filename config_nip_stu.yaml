@@ -5,8 +5,9 @@ toolbox: "g:/R_proj_gergiev/released/salsa_toolbox_r/src/salsa_toolbox.R"
 uitzendmac_gewijzigd: FALSE
 filemaker_gewijzigd: FALSE
 # nipper_werk: "/Users/nipper/r_projects/cz_nipper/resources/nipper_werk.tab"
-# home_draaiboeken: "//MACSERVER/Server RAID disk/Shared Items/Kantoor/PROGRAMMAS/Presentatie&Techniek/Programmaformulieren/01_nipper_draaiboeken"
-home_draaiboeken: "//192.168.1.81/Server RAID disk/Shared Items/Kantoor/PROGRAMMAS/Presentatie&Techniek/Programmaformulieren/01_nipper_draaiboeken/"
+home_draaiboeken: "//MACSERVER/Server RAID disk/Shared Items/Kantoor/PROGRAMMAS/Presentatie&Techniek/Programmaformulieren/01_nipper_draaiboeken/"
+# home_draaiboeken: "//192.168.1.81/Server RAID disk/Shared Items/Kantoor/PROGRAMMAS/Presentatie&Techniek/Programmaformulieren/01_nipper_draaiboeken/"
+# home_draaiboeken: "//macserver/01_nipper_draaiboeken/"
 # nip_xpr_gd_reg: "Nipper Express 0.2.FoSa"
 nip_nxt_gd_reg: "NipperNext"
 

@@ -127,7 +127,7 @@ vot.1 <- playlists.5 %>%
   filter(pl_transit == "VOT") %>% 
   select(pl_name, user_id, title_id, pl_transit) %>% distinct()
 
-# manually: TOT HIER ----
+# EERST TOT HIER ----
 
 # Stop RL-scheduler ----
 flog.info("RL-scheduler stoppen", name = "nsbe_log")
@@ -137,6 +137,7 @@ write_lines(switch, file = switch_home, append = FALSE)
 Sys.sleep(time = 5)
 flog.info("RL-scheduler is gestopt", name = "nsbe_log")
 
+#_----
 # bumper PL's maken ----
 if (nrow(bum.1) > 0) {
   
@@ -311,7 +312,7 @@ if (nrow(bum.1) > 0) {
     cur_pl_nieuw <- playlists.6 %>% filter(pl_name == cur_pl)
     
     blokken <- cur_pl_nieuw %>% distinct(block_order) %>% 
-      mutate(bid = paste0("RL_BLK_", LETTERS[block_order])) %>% 
+      mutate(bid = paste0("RL_BLK_", block_order)) %>% 
       select(vt_blok_letter = bid)
     
     # + bumpervolgorde ---- 
@@ -335,7 +336,7 @@ if (nrow(bum.1) > 0) {
           duur = "",
           audiofile = get_bumper_audio(pm_playlist = cur_pl, pm_blok = blok, pm_stack = bumper_stack),
           const_false = "FALSE",
-          start_sec_sinds_middernacht = if_else(blok == "RL_BLK_A",
+          start_sec_sinds_middernacht = if_else(blok == "RL_BLK_1",
                                                 cur_pl_nieuw$pl_start[1] * 3600L,
                                                 -1L), # -1 = direct erna afspelen
           fwdtab1 = "",
@@ -394,7 +395,7 @@ if (nrow(bum.1) > 0) {
     
     cur_pl %<>% str_replace_all(pattern = "[.]", replacement = "-")
     
-    # + write RL-playlists ----
+    # + write RL-playlist ----
     # home_radiologik_playlists <- "C:/cz_salsa/nipper/temp_rlprg/"
     home_radiologik_playlists <- paste0(home_prop("home_radiologik_win"), "Programs/")
     rlprg_file_name <- paste0(home_radiologik_playlists, cur_pl, ".rlprg")
@@ -403,8 +404,16 @@ if (nrow(bum.1) > 0) {
     
     flog.info("RL-playlist toegevoegd: %s", rlprg_file_name, name = "nsbe_log")
     
-    # + write RL-scheduler jobs ----
+    # + write NEW schedule ----
     build_rl_script(cur_pl)
+    
+    # + write REPLAY schedule ----
+    cur_pl_date <- playlist2postdate(cur_pl)
+    suppressMessages(stamped_format <- stamp("20191229_zo", orders = "%Y%0m%d_%a"))
+    replay_sched <- paste0(stamped_format(cur_pl_date + days(7L)), str_sub(cur_pl, 12))
+    replay_pl <- get_replay_playlist(cur_pl)
+    RL_replay <- c(replay_sched, replay_pl)
+    build_rl_script(RL_replay)
   }
   
   # + gids bijwerken ----
@@ -459,6 +468,7 @@ if (nrow(bum.1) > 0) {
   # dbDisconnect(ns_con)
 }
 
+#_----
 # voice track PL's maken ----
 if (nrow(vot.1) > 0) {
   
@@ -549,11 +559,13 @@ if (nrow(vot.1) > 0) {
     cur_pl_nieuw <- playlists.6 %>% filter(pl_name == cur_pl)
     
     blokken <- cur_pl_nieuw %>% select(post_id, block_order) %>% distinct() %>% 
-      mutate(bid = paste0("NS", post_id, LETTERS[block_order])) %>% 
+      # mutate(bid = paste0("NS", post_id, LETTERS[block_order])) %>% 
+      mutate(bid = paste0("NS", post_id, "_", block_order)) %>% 
       select(vt_blok_letter = bid)
     
-    sluitletter <- paste0("NS", cur_pl_nieuw$post_id, LETTERS[1 + nrow(blokken)]) %>% unique()
-    sluitblok <- sluitletter %>% as_tibble %>% setNames("vt_blok_letter")
+    # sluitletter <- paste0("NS", cur_pl_nieuw$post_id, LETTERS[1 + nrow(blokken)]) %>% unique()
+    sluit_idx <- paste0("NS", cur_pl_nieuw$post_id, "_", (1 + max(cur_pl_nieuw$block_order))) %>% unique()
+    sluitblok <- sluit_idx %>% as_tibble %>% setNames("vt_blok_letter")
     blokken %<>% bind_rows(sluitblok) 
     
     playlist_id_df <- cur_pl_nieuw %>% 
@@ -615,7 +627,7 @@ if (nrow(vot.1) > 0) {
     
     cur_pl %<>% str_replace_all(pattern = "[.]", replacement = "-")
     
-    # + write RL-playlists ----
+    # + build RL-playlists ----
     # home_radiologik_playlists <- "C:/cz_salsa/nipper/temp_rlprg/"
     home_radiologik_playlists <- paste0(home_prop("home_radiologik_win"), "Programs/")
     rlprg_file_name <- paste0(home_radiologik_playlists, cur_pl, ".rlprg")
@@ -624,10 +636,18 @@ if (nrow(vot.1) > 0) {
     
     flog.info("RL-playlist toegevoegd: %s", rlprg_file_name, name = "nsbe_log")
     
-    # + create RL-scheduler jobs ----
+    # + build NEW schedule ----
     build_rl_script(cur_pl)
     
-    # + create host scripts ----
+    # + build REPLAY schedule ----
+    cur_pl_date <- playlist2postdate(cur_pl)
+    suppressMessages(stamped_format <- stamp("20191229_zo", orders = "%Y%0m%d_%a"))
+    replay_sched <- paste0(stamped_format(cur_pl_date + days(7L)), str_sub(cur_pl, 12))
+    replay_pl <- get_replay_playlist(cur_pl)
+    RL_replay <- c(replay_sched, replay_pl)
+    build_rl_script(RL_replay)
+    
+    # + build host scripts ----
     build_host_script(cur_pl_nieuw$pl_name[1])
   }
   

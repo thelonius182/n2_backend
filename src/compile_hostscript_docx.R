@@ -5,7 +5,7 @@ build_host_script <- function(arg_pl_name) {
   draaiboek <- playlists.6 %>% filter(pl_name == arg_pl_name) %>% arrange(block_order, track_order)
   
   blokken <- draaiboek %>% select(post_id, block_order) %>% distinct() %>% 
-    mutate(vt_blok = paste0("NS", post_id, LETTERS[block_order]))
+    mutate(vt_blok = paste0("NS", post_id, "_", block_order))
   
   draaiboek.1 <- draaiboek %>% inner_join(blokken)
   
@@ -64,14 +64,10 @@ build_host_script <- function(arg_pl_name) {
   }
   
   # voicetrack audiofile slot
-  slot_blok <-
-    str_replace(dbk_blokken$vt_blok[p1], 
-                "(.*)(\\w)", 
-                paste0("\\1", 
-                       LETTERS[match(str_sub(dbk_blokken$vt_blok[p1], -1), LETTERS) + 1])
-    )
-  
-  alinea <- sprintf("VoiceTrack: <vt_clips_folder>/%s.aif", slot_blok)
+  slot_blok <- blokken %>% filter(block_order == max(block_order)) %>% 
+    mutate(sb = paste0("NS", post_id, "_", (1 + block_order)))
+
+  alinea <- sprintf("VoiceTrack: <vt_clips_folder>/%s.aif", slot_blok$sb)
   
   suppressMessages(dbk_doc %>% 
                      body_add_par("Blok - slot", style = "drb_blok") %>% 

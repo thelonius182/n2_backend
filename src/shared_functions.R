@@ -94,7 +94,7 @@ random_select <- function(L1, n1) {
 
 get_bumper_audio <- function(pm_playlist, pm_blok, pm_stack) {
   
-  if (pm_blok == "RL_BLK_A") {
+  if (pm_blok == "RL_BLK_1") {
     bum_aan_df <- bum_aan %>% filter(pl_name == pm_playlist)
     bum_obs <- bum_aan_df$ns_dir[1]
   } else if (pm_blok == "SLOT") {
@@ -144,5 +144,24 @@ gd_wp_gidsinfo <- function(arg_sheet) {
     return("GD-error")
   }
   )
+  return(result)
+}
+
+get_replay_playlist <- function(arg_pl) {
+  
+  pl_home <- paste0(home_prop("home_radiologik_win"), "Programs/")
+    
+  result <- arg_pl
+  
+  # preferably the one that is 6 months old 
+  pl_date <- playlist2postdate(arg_pl)
+  suppressMessages(stamped_format <- stamp("20191229_zo", orders = "%Y%0m%d_%a"))
+  pl_his <- paste0(stamped_format(pl_date - days(168L)), str_sub(arg_pl, 12))
+  pl_candidate <- dir_ls(pl_home, regexp = str_sub(pl_his, 1, 13))
+  
+  if (length(pl_candidate) == 1) {
+    result <- path_file(pl_candidate) %>% str_replace("\\.rlprg", "")
+  }
+  
   return(result)
 }
