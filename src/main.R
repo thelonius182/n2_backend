@@ -43,7 +43,7 @@ flog.info("Verbonden!", name = "nsbe_log")
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
 # NipperStudio-versie van de spreadsheet maken
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-# + lees pl op WP ----
+# + lees pl van WP ----
 query <- "select * from wp_nipper_main_playlists"
 playlists_db <- dbGetQuery(conn = ns_con, statement = query)
 playlists.1 <- playlists_db %>% 
@@ -56,7 +56,7 @@ playlists.1 <- playlists_db %>%
          title_id = program_id,
          user_id)
 
-# + koppel archief ----
+# + lees pl van NS ----
 playlists_his <- read_rds(paste0(rds_home, "nipper_main_playlists.RDS")) %>% 
   # mutate(pl_date = ymd(program_date)) %>% 
   select(pl_date = program_date, 
@@ -66,6 +66,21 @@ playlists_his <- read_rds(paste0(rds_home, "nipper_main_playlists.RDS")) %>%
 
 playlists.2 <- playlists.1 %>% 
   left_join(playlists_his)
+
+# + check pl's compleet ----
+playlists.2_err <- playlists.2 %>% filter(is.na(pl_name))
+
+# + . pl's niet compleet ----
+if (nrow(playlists.2_err) > 0) {
+  dbDisconnect(ns_con)
+  flog.error("Playlistweek-taak heeft niet alle WP-playlists aangemeld bij NS-backend", name = "nsbe_log")
+  flog.info("= = = = = NipperStudio stop = = = = =", name = "nsbe_log")
+}
+
+stopifnot("Playlistweek-taak heeft niet alle WP-playlists aangemeld bij NS-backend" = nrow(playlists.2_err) == 0)
+
+# + . pl's wel compleet ----
+flog.info("Alle WP-playlists waren aangemeld bij NS-backend", name = "nsbe_log")
 
 # + lees blokken ----
 query <- "select * from wp_nipper_blocks"

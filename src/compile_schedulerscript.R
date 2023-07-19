@@ -152,9 +152,9 @@ build_rl_script <- function(arg_playlist) {
     write.table(x = script_file, file = script_file_name, row.names = FALSE, col.names = FALSE, 
                 sep = "\t", quote = FALSE, fileEncoding = "UTF-8") 
     
-    flog.info("RL-schedulerjob toegevoegd: %s", cur_pl, name = "nsbe_log")
+    flog.info("RL-schedulerjob toegevoegd voor %s", rlprg_file, name = "nsbe_log")
   } else {
-    flog.info("RL-schedulerjob al aanwezig: %s", cur_pl, name = "nsbe_log")
+    flog.info("RL-schedulerjob al aanwezig voor %s", rlprg_file, name = "nsbe_log")
   }
 }
 
