@@ -177,10 +177,12 @@ if (nrow(bum.1) > 0) {
   # + . gids koppen ----
   gd_wp_gidsinfo_header_NL <- gd_wp_gidsinfo_header %>% 
     select(hdr_key = `key-modelrooster`, hdr_txt = `std.samenvatting-NL`) %>% 
-    mutate(hdr_key = hdr_key %>% str_to_lower() %>% str_replace_all(pattern = " ", replacement = "_"))
+    mutate(hdr_key = hdr_key %>% str_to_lower() %>% str_replace_all(pattern = "[- ]", replacement = "_")
+           %>% str_replace_all(pattern = "___", replacement = "__"))
   gd_wp_gidsinfo_header_EN <- gd_wp_gidsinfo_header %>% 
     select(hdr_key = `key-modelrooster`, hdr_txt = `std.samenvatting-EN`) %>% 
-    mutate(hdr_key = hdr_key %>% str_to_lower() %>% str_replace_all(pattern = " ", replacement = "_"))
+    mutate(hdr_key = hdr_key %>% str_to_lower() %>% str_replace_all(pattern = "[- ]", replacement = "_")
+           %>% str_replace_all(pattern = "___", replacement = "__"))
   
   # + . gids slugs ----
   gd_wp_gidsinfo_slugs_raw <- gd_wp_gidsinfo("nipperstudio_slugs")
@@ -508,10 +510,12 @@ if (nrow(vot.1) > 0) {
   # + . gids koppen ----
   gd_wp_gidsinfo_header_NL <- gd_wp_gidsinfo_header %>% 
     select(hdr_key = `key-modelrooster`, hdr_txt = `std.samenvatting-NL`) %>% 
-    mutate(hdr_key = hdr_key %>% str_to_lower() %>% str_replace_all(pattern = " ", replacement = "_"))
+    mutate(hdr_key = hdr_key %>% str_to_lower() %>% str_replace_all(pattern = "[- ]", replacement = "_")
+           %>% str_replace_all(pattern = "___", replacement = "__"))
   gd_wp_gidsinfo_header_EN <- gd_wp_gidsinfo_header %>% 
     select(hdr_key = `key-modelrooster`, hdr_txt = `std.samenvatting-EN`) %>% 
-    mutate(hdr_key = hdr_key %>% str_to_lower() %>% str_replace_all(pattern = " ", replacement = "_"))
+    mutate(hdr_key = hdr_key %>% str_to_lower() %>% str_replace_all(pattern = "[- ]", replacement = "_")
+           %>% str_replace_all(pattern = "___", replacement = "__"))
   
   # + . gids slugs ----
   gd_wp_gidsinfo_slugs_raw <- gd_wp_gidsinfo("nipperstudio_slugs")
