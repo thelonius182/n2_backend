@@ -9,12 +9,11 @@ build_host_script <- function(arg_pl_name) {
   
   draaiboek.1 <- draaiboek %>% inner_join(blokken)
   
-  dbk <- draaiboek.1 %>% distinct(vt_blok, .keep_all = T) %>% 
-    group_by(vt_blok) %>% 
-    summarise(bloklengte = sum(blokduur_sec)) %>% 
-    mutate(bloklengte = bloklengte + 40, # per blok 40 seconden presentatie
-           cum_lengte = cumsum(as.integer(bloklengte)))
-  
+  dbk <- draaiboek.1 |> distinct(vt_blok, .keep_all = T) |> 
+    group_by(vt_blok) |> mutate(bloklengte = sum(blokduur_sec)) |> select(vt_blok, bloklengte) |> 
+    ungroup() |> mutate(bloklengte = bloklengte + 40, # per blok 40 seconden presentatie
+                        cum_lengte = cumsum(as.integer(bloklengte)))
+
   dbk$cum_lengte <- np_sec2hms(dbk$cum_lengte)
   dbk$bloklengte_hms <- np_sec2hms(dbk$bloklengte)
   
