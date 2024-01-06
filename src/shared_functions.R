@@ -123,7 +123,7 @@ create_form <- function(arg_playlist) {
   cur_audio_ids <- ns_tracks %>% filter(pl_name == arg_playlist) %>% select(recording_no)
   
   cur_audio_ids_sep <- cur_audio_ids %>% 
-    separate(recording_no, into = paste0("muw_track", 1:15), sep = ", ", fill = "right") %>% 
+    separate(recording_no, into = paste0("muw_track", 1:150), sep = ", ", fill = "right") %>% 
     pivot_longer(names_to = "track_key", values_to = "track_value", cols = starts_with("muw_")) %>% 
     filter(!is.na(track_value)) %>% select(track_value) %>% 
     separate(track_value, into = c("album_id", "track_id"), sep = "-") %>% 
