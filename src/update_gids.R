@@ -372,7 +372,21 @@ for (pid in ns_editor_info.1$post_id_chr) {
       as.character(ed_term_rel$object_id),
       as.character(ed_term_rel$term_taxonomy_id))
 
-  flog.info("Query to update web page editor: %s", sql_upd_tr1, name = "nsbe_log")
+  flog.info("Query to update web page editor (taxonomy): %s", sql_upd_tr1, name = "nsbe_log")
 
   dbExecute(ns_con, sql_upd_tr1)
+
+  sql_upd_pm1 <- 
+    sprintf("update wp_postmeta set meta_value = 
+                (select te1.name from wp_term_relationships tr1
+                                 left join wp_term_taxonomy tx1 
+                                        on tx1.term_taxonomy_id = tr1.term_taxonomy_id
+                                 left join wp_terms te1 
+                                        on te1.term_id = tr1.term_taxonomy_id
+                 where tr1.object_id = %s and taxonomy = 'programma_maker')
+             where post_id = %s and meta_key = 'pr_metadata_production1_person';", pid, pid)
+
+  flog.info("Query to update web page editor (post_meta): %s", sql_upd_pm1, name = "nsbe_log")
+
+  dbExecute(ns_con, sql_upd_pm1)
 }
