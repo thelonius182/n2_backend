@@ -34,12 +34,12 @@ if (exists("bum.3") && nrow(bum.3) > 0) {
       # sql_gidstekst <- sprintf("Werken van %s.\n<!--more-->\n\n", koptekst$werken_van)
       sql_gidstekst <- "@HEADER\n<!--more-->\n\n"
       
-      regel <- 
-        '<a>
-<img class="aligncenter" src="https://www.concertzender.nl/wp-content/uploads/2023/06/rata_logo.png" />
-</a>
-&nbsp;'
-      sql_gidstekst <- paste0(sql_gidstekst, regel, "\n")
+#       regel <- 
+#         '<a>
+# <img class="aligncenter" src="https://www.concertzender.nl/wp-content/uploads/2023/06/rata_logo.png" />
+# </a>
+# &nbsp;'
+#       sql_gidstekst <- paste0(sql_gidstekst, regel, "\n")
       
       regel <- '<style>td {padding: 6px; text-align: left;}</style>\n<table style="width: 100%;"><tbody>'
       sql_gidstekst <- paste0(sql_gidstekst, regel, "\n")
