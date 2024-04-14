@@ -338,6 +338,7 @@ WHERE
         AND mp1.finished = 1
         AND (tr1.term_taxonomy_id = 5 AND te1.slug NOT REGEXP '.*-en$' OR 
              tr1.term_taxonomy_id = 4 AND te1.slug REGEXP '.*-en$')
+		AND po1.post_type = 'programma'
 ORDER BY 1;
 "
 
