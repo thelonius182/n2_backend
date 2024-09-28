@@ -55,10 +55,8 @@ get_ns_conn <- function(db_env) {
     db_env <- "wpprd_mariadb"
   } 
   
-  flog.info(sprintf("Maak verbinding met WP-database %s", db_env), name = "nsbe_log")
-  
   result <- tryCatch( {
-    grh_con <- dbConnect(odbc::odbc(), db_env, timeout = 10, encoding = "CP850")
+    dbConnect(odbc::odbc(), db_env, timeout = 10, encoding = "CP850")
   },
   error = function(cond) {
     flog.error(sprintf("Verbinding mislukt: %s", cond$message), name = "nsbe_log")

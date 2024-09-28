@@ -5,13 +5,7 @@
 # = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
 build_rl_script <- function(arg_playlist) {
-  # !TEST! # 
-  # arg_playlist <- c("20200106_ma07.180_ochtendeditie",         # the playlist made in NipperNext
-  #                   "20181118_zo10.060_een_vroege_wandeling")  # the playlist to use as replay
-  # arg_playlist <- c("20220602_do11-060_onbekend_onbemind")
-  # arg_playlist <- c("20230313_ma07-180_ochtendeditie")
-  # !TEST! # 
-  
+
   playlist <- arg_playlist[1];
   # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   # Info types samenstellen - zie tabblad "schedule_radiologik"
@@ -127,7 +121,7 @@ build_rl_script <- function(arg_playlist) {
   # een volgnummer: 1 + <aantal scripts in deze map>
   # home_radiologik_schedules <- "C:/cz_salsa/nipper/temp_rlprg/"
   home_radiologik_schedules <- paste0(home_prop("home_radiologik_win"), "Schedule/")
-  nrow_schedules <- 1L + dir_ls(path = home_radiologik_schedules) %>% 
+  nxt_sched_nbr <- 1L + dir_ls(path = home_radiologik_schedules) %>% 
     as_tibble() %>% nrow
   
   script_file_name <- sprintf(paste0("%03d - ", 
@@ -138,7 +132,7 @@ build_rl_script <- function(arg_playlist) {
                                             str_sub(playlist, 7)
                                      )
                               ),
-                              nrow_schedules) %>% 
+                              nxt_sched_nbr) %>% 
     str_replace_all(pattern = "\\.", replacement = "-")
   
   script_file_name <- paste0(home_radiologik_schedules, script_file_name)
