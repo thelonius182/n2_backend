@@ -134,15 +134,13 @@ create_form <- function(arg_playlist) {
 }
 
 gd_wp_gidsinfo <- function(arg_sheet) {
-  result <- tryCatch( {
-    gds <- read_sheet(ss = "16DrvLEXi3mEa9AbSw28YBkYpCvyO1wXwBwaNi7HpBkA", sheet = arg_sheet)
+  tryCatch( {
+    read_sheet(ss = config$url_wp_gidsinfo, sheet = arg_sheet)
   },
   error = function(cond) {
     flog.error(sprintf("Verbinding met GoogleDrive (WP-gidsinfo) mislukt: %s", cond$message), name = "nsbe_log")
     return("GD-error")
-  }
-  )
-  return(result)
+  })
 }
 
 get_replay_playlist <- function(arg_pl) {
@@ -151,14 +149,14 @@ get_replay_playlist <- function(arg_pl) {
     
   result <- arg_pl
   
-  # preferably the one that is 6 months old 
+  # preferably the one from 25 weeks ago (calculate wrt arg_pl which already is 7 days old, so -168 not -175) 
   pl_date <- playlist2postdate(arg_pl)
-  suppressMessages(stamped_format <- stamp("20191229_zo", orders = "%Y%0m%d_%a"))
+  stamped_format <- stamp("20191229_zo", orders = "%Y%0m%d_%a", quiet = T)
   pl_his <- paste0(stamped_format(pl_date - days(168L)), str_sub(arg_pl, 12))
   pl_candidate <- dir_ls(pl_home, regexp = str_sub(pl_his, 1, 13))
   
   if (length(pl_candidate) == 1) {
-    result <- path_file(pl_candidate) %>% str_replace("\\.rlprg", "")
+    result <- path_file(pl_candidate) |> str_replace("\\.rlprg", "")
   }
   
   return(result)
