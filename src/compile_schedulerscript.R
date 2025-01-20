@@ -1,14 +1,11 @@
 # = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 # Compile scheduler script
+#
+# All functions!
 # = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
 build_rl_script <- function(arg_playlist) {
-  # !TEST! # 
-  # arg_playlist <- c("20200106_ma07.180_ochtendeditie",         # the playlist made in NipperNext
-  #                   "20181118_zo10.060_een_vroege_wandeling")  # the playlist to use as replay
-  # arg_playlist <- c("20220216_wo08_060_een_vroege_wandeling")
-  # !TEST! # 
-  
+
   playlist <- arg_playlist[1];
   # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
   # Info types samenstellen - zie tabblad "schedule_radiologik"
@@ -122,14 +119,12 @@ build_rl_script <- function(arg_playlist) {
   
   # zet de startscripts voor de playlists in de schedules-map van RL, naam begint met
   # een volgnummer: 1 + <aantal scripts in deze map>
-  home_radiologik_schedules <- paste0(home_prop("home_radiologik"), "Schedule/")
-  nrow_schedules <- 1L + dir_ls(path = home_radiologik_schedules) %>% 
-    as_tibble() %>% 
-    nrow
+  # home_radiologik_schedules <- "C:/cz_salsa/nipper/temp_rlprg/"
+  home_radiologik_schedules <- paste0(home_prop("home_radiologik_win"), "Schedule/")
+  nxt_sched_nbr <- 1L + dir_ls(path = home_radiologik_schedules) %>% 
+    as_tibble() %>% nrow
   
-  # tmp_replacement <- if_else()
-  script_file_name <- sprintf(paste0(home_radiologik_schedules, 
-                                     "%03d - ", 
+  script_file_name <- sprintf(paste0("%03d - ", 
                                      paste0(str_sub(playlist, 1, 4),
                                             "-",
                                             str_sub(playlist, 5, 6),
@@ -137,11 +132,24 @@ build_rl_script <- function(arg_playlist) {
                                             str_sub(playlist, 7)
                                      )
                               ),
-                              nrow_schedules) %>% 
+                              nxt_sched_nbr) %>% 
     str_replace_all(pattern = "\\.", replacement = "-")
   
-  write.table(x = script_file, file = script_file_name, row.names = FALSE, col.names = FALSE, 
-              sep = "\t", quote = FALSE, fileEncoding = "UTF-8") 
+  script_file_name <- paste0(home_radiologik_schedules, script_file_name)
+  
+  # bestaand script laten staan
+  existing_script <- dir_ls(path = home_radiologik_schedules,
+                            type = "file",
+                            regexp = str_sub(path_file(script_file_name), 7))
+  
+  if (length(existing_script) == 0) {
+    write.table(x = script_file, file = script_file_name, row.names = FALSE, col.names = FALSE, 
+                sep = "\t", quote = FALSE, fileEncoding = "UTF-8") 
+    
+    flog.info("RL-schedulerjob toegevoegd voor %s", rlprg_file, name = "nsbe_log")
+  } else {
+    flog.info("RL-schedulerjob al aanwezig voor %s", rlprg_file, name = "nsbe_log")
+  }
 }
 
 rls_dagletters <- function(some_playlist) {
@@ -172,7 +180,7 @@ rls_venster <- function(some_playlist) {
   # !TEST! # some_playlist <- "20181231_wo00.420_de_nacht_klassiek"
   venster_datum_start <- str_sub(some_playlist, 1, 8) %>% ymd
   venster_datum_stop <- venster_datum_start + days(1)
-  rl_date_fmt <- stamp_date("23 mrt. 2018")
+  rl_date_fmt <- stamp_date("23 Mar 2018", locale = "C", quiet = T)
   venster_datum_start %<>% rl_date_fmt %>% str_replace(pattern = "mei\\.", replacement = "mei ")
   venster_datum_stop %<>% rl_date_fmt %>% str_replace(pattern = "mei\\.", replacement = "mei ")
   rls_venster_result <- c(venster_datum_start, venster_datum_stop)
