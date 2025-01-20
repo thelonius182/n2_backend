@@ -15,7 +15,8 @@ nip_nxt_gd_reg: "NipperNext"
 host: "uzmtwo"
 
 url_pfx: "docs.google.com/spreadsheets/d/"
-url_nipper_next: "1U1aKx5CgZXfuQ3p491PFWKZWSE2TL87m1RErdleuMvQ"
+# url_nipper_next: "1U1aKx5CgZXfuQ3p491PFWKZWSE2TL87m1RErdleuMvQ"
+url_nipper_next: 1msW4enMK_LfiKEZWF1mY7qdZ8RolIyldH8q6ax9dv_4
 
 cz_rds_store: "C:/Users/nipper/cz_rds_store/branches/cz_gdrive/"
 gs_downloads: "C:/Users/nipper/Downloads/cz_downloads"
