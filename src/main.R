@@ -5,8 +5,6 @@ pacman::p_load(knitr, rmarkdown, RCurl, readr, futile.logger, DBI, officer, httr
                xml2, tidyverse, keyring, googlesheets4, yaml, fs, magrittr, hms,
                lubridate, zip, stringr, fastmap)
 
-fa <- flog.appender(appender.file("c:/cz_salsa/Logs/ns_bum_vot.log"), name = "nsbe_log")
-
 home_prop <- function(prop) {
   prop_name <- paste0(prop, ".", host)
   prop <- config[[prop_name]] |> 
@@ -26,60 +24,69 @@ source("src/shared_functions.R", encoding = "UTF-8") # functions only
 
 host <- config$host
 home_vt_audio_mac <- home_prop("home_vt_audio_mac")
-home_vt_audio_win  <- home_prop("home_vt_audio_win") |> 
-  str_replace_all(pattern = "%20", replacement = " ")
+home_vt_audio_win  <- home_prop("home_vt_audio_win") |> str_replace_all(pattern = "%20", replacement = " ")
 home_radiologik <- home_prop("home_radiologik_win")
 switch_home <- paste0(home_prop("home_schedulerswitch"), "nipper_msg.txt")
-gs4_auth(email = "cz.teamservice@gmail.com")
+RL_scheduler_running <- TRUE
 
-# + connect to DB ----
-ns_con <- get_ns_conn("PRD")
-
-if (typeof(ns_con) != "S4") {
-  em1 <- "WP-database is niet beschikbaar"
-  flog.error(em1, name = "nsbe_log")
-  stop(em1, call. = F)
-}
-
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-# NipperStudio-versie van de spreadsheet maken
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-# + lees pl van WP ----
-query <- "select * from wp_nipper_main_playlists"
-playlists_db <- dbGetQuery(conn = ns_con, statement = query)
-playlists.1 <- playlists_db |> 
-  filter(deleted == 0 & finished == 1) |> 
-  select(pl_id = id,
-         pl_date = program_date,
-         pl_start = time_start,
-         pl_transit = block_transition,
-         pl_state = finished,
-         title_id = program_id,
-         user_id)
-
-# + lees pl van NS ----
-playlists_his <- read_rds(paste0(rds_home, "nipper_main_playlists.RDS")) |> 
-  # mutate(pl_date = ymd(program_date)) |> 
-  select(pl_date = program_date, 
-         pl_start = time_start, 
-         post_id,
-         pl_name = playlist_name)
-
-playlists.2 <- playlists.1 |> 
-  left_join(playlists_his)
-
-# + check pl's compleet ----
-playlists.2_err <- playlists.2 |> filter(is.na(pl_name))
-
-# + . pl's niet compleet ----
-if (nrow(playlists.2_err) > 0) {
-  dbDisconnect(ns_con)
-  flog.error("Playlistweek-taak heeft niet alle WP-playlists aangemeld bij NS-backend", name = "nsbe_log")
-  stop(call. = F)
-}
+fa <- flog.appender(appender.file("c:/cz_salsa/Logs/ns_bum_vot.log"), name = "nsbe_log")
+flog.info("
+= = = = = NipperStudio start (versie 2025-01-20) = = = = =", name = "nsbe_log")
 
 # start MCL
 repeat { 
+  # + connect to DB ----
+  ns_con <- get_ns_conn("PRD")
+  
+  if (typeof(ns_con) != "S4") {
+    flog.error("WP-database is niet beschikbaar", name = "nsbe_log")
+    break
+  }
+  
+  # + lees pl van WP ----
+  query <- "select * from wp_nipper_main_playlists"
+  playlists_db <- dbGetQuery(conn = ns_con, statement = query)
+  playlists.1 <- playlists_db |> 
+    filter(deleted == 0 & finished == 1) |> 
+    select(pl_id = id,
+           pl_date = program_date,
+           pl_start = time_start,
+           pl_transit = block_transition,
+           pl_state = finished,
+           title_id = program_id,
+           user_id)
+  
+  # + lees pl van NS ----
+  playlists_his <- read_rds(paste0(rds_home, "nipper_main_playlists.RDS")) |> 
+    select(pl_date = program_date, 
+           pl_start = time_start, 
+           post_id,
+           pl_name = playlist_name)
+  
+  playlists.2 <- playlists.1 |> left_join(playlists_his)
+  
+  # + check pl's compleet ----
+  playlists.2_err <- playlists.2 |> filter(is.na(pl_name))
+  
+  # + . pl's niet compleet ----
+  if (nrow(playlists.2_err) > 0) {
+    dbDisconnect(ns_con)
+    flog.error("Playlistweek-taak heeft niet alle WP-playlists aangemeld bij NS-backend", name = "nsbe_log")
+    break
+  }
+  
+  # + get WP-gidsinfo ----
+  tryCatch(
+    {
+      gs4_auth(email = "cz.teamservice@gmail.com")
+      gd_wp_gidsinfo_header <- read_sheet(ss = config$url_wp_gidsinfo, sheet = "gids-info")
+      gd_wp_gidsinfo_slugs_raw <- read_sheet(ss = config$url_wp_gidsinfo, sheet = "nipperstudio_slugs")
+      audio_locaties <- read_sheet(ss = config$url_audio_locaties, sheet = "audio_locaties")
+    },
+    error = function(e1) {
+      flog.error("Load error GD-sheet(s): %s", conditionMessage(e1), name = "nsbe_log")
+      break
+    })
   
   # + lees blokken ----
   query <- "select * from wp_nipper_blocks"
@@ -115,9 +122,6 @@ repeat {
   # niets aangeboden: stop ----
   if (nrow(playlists.4) == 0) break
   
-  flog.info("
-= = = = = NipperStudio start (versie 2024-09-28 16:33) = = = = =", name = "nsbe_log")
-  
   pl_log_names <- str_flatten(playlists.4$pl_name, collapse = "\n")
   pl_log_posts <- str_flatten(playlists.4$post_id, collapse = ", ")
   flog.info(paste0("Aangeboden playlists:\n", pl_log_names), name = "nsbe_log")
@@ -142,6 +146,7 @@ repeat {
   write_lines(switch, file = switch_home, append = FALSE)
   Sys.sleep(time = 5)
   flog.info("RL-scheduler is gestopt", name = "nsbe_log")
+  RL_scheduler_running <- FALSE
   
   #_----
   # bumper PL's maken ----
@@ -152,18 +157,6 @@ repeat {
                        bum_editor_list)
     bum_wp_users <- dbGetQuery(conn = ns_con, statement = sqlstmt)
     bum.2 <- bum_wp_users |> left_join(bum.1)
-
-    # + get WP-gidsinfo ----
-    tryCatch(
-      {
-        gs4_auth(email = "cz.teamservice@gmail.com")
-        gd_wp_gidsinfo_header <- read_sheet(ss = config$url_wp_gidsinfo, sheet = "gids-info")
-        gd_wp_gidsinfo_slugs_raw <- read_sheet(ss = config$url_wp_gidsinfo, sheet = "nipperstudio_slugs")
-      },
-      error = function(e1) {
-        flog.error("Load error WP-gidsinfo: %s", conditionMessage(e1), name = "nsbe_log")
-        break
-      })
 
     # + . gids koppen ----
     gd_wp_gidsinfo_header_NL <- gd_wp_gidsinfo_header |> 
@@ -474,19 +467,6 @@ repeat {
     vot_wp_users <- dbGetQuery(conn = ns_con, statement = sqlstmt)
     vot.2 <- vot_wp_users |> left_join(vot.1)
 
-    # + get WP-gidsinfo ----
-    tryCatch(
-      {
-        gs4_auth(email = "cz.teamservice@gmail.com")
-        gd_wp_gidsinfo_header <- read_sheet(ss = config$url_wp_gidsinfo, sheet = "gids-info")
-        gd_wp_gidsinfo_slugs_raw <- read_sheet(ss = config$url_wp_gidsinfo, sheet = "nipperstudio_slugs")
-        audio_locaties <- read_sheet(ss = config$url_audio_locaties, sheet = "audio_locaties")
-      },
-      error = function(e1) {
-        flog.error("Load error GD-sheet(s): %s", conditionMessage(e1), name = "nsbe_log")
-        break
-      })
-
     # + . gids koppen ----
     gd_wp_gidsinfo_header_NL <- gd_wp_gidsinfo_header |> 
       select(hdr_key = `key-modelrooster`, hdr_txt = `std.samenvatting-NL`) |> 
@@ -693,15 +673,17 @@ repeat {
   
   dbDisconnect(ns_con)
   
-  # + start RL-scheduler ----
+  # exit MCL
+  break
+}
+
+# + start RL-scheduler ----
+if (!RL_scheduler_running) {
   flog.info("RL-scheduler starten...", name = "nsbe_log")
   switch <- read_lines(file = switch_home)
   switch <- "start RL-scheduler"
   write_lines(switch, file = switch_home, append = FALSE)
   flog.info("RL-scheduler draait weer", name = "nsbe_log")
-  
-  flog.info("= = = = = NipperStudio stop = = = = =", name = "nsbe_log")
-  
-  # exit MCL
-  break
 }
+
+flog.info("= = = = = NipperStudio stop = = = = =", name = "nsbe_log")
