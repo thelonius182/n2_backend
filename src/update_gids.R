@@ -24,11 +24,11 @@ if (exists("bum.3") && nrow(bum.3) > 0) {
     # + update gids ----
     for (cur_pl in unique(ns_tracks$pl_name)) {
       
-      sql_post_date <- playlist2postdate(cur_pl) |> as.character
+      sql_post_date <- playlist2postdate(cur_pl) |> as.character()
 
       drb_gids_pl <- drb_gids |> filter(pl_name == cur_pl)
       
-      koptekst <- drb_gids_pl |> select(pl_name, componist) |> distinct |> 
+      koptekst <- drb_gids_pl |> select(pl_name, componist) |> distinct() |> 
         group_by(pl_name) |> summarise(werken_van = paste(componist, collapse = ", "))
       
       # sql_gidstekst <- sprintf("Werken van %s.\n<!--more-->\n\n", koptekst$werken_van)
@@ -193,11 +193,11 @@ if (exists("vot.3") && nrow(vot.3) > 0) {
   # update gids ----
   for (cur_pl in unique(ns_tracks$pl_name)) {
     
-    sql_post_date <- playlist2postdate(cur_pl) |> as.character
+    sql_post_date <- playlist2postdate(cur_pl) |> as.character()
     
     drb_gids_pl <- drb_gids |> filter(pl_name == cur_pl)
     
-    koptekst <- drb_gids_pl |> select(pl_name, componist) |> distinct |> 
+    koptekst <- drb_gids_pl |> select(pl_name, componist) |> distinct() |> 
       group_by(pl_name) |> summarise(werken_van = paste(componist, collapse = ", "))
     
     sql_gidstekst <- paste0("Werken van ", koptekst$werken_van, "\n<!--more-->\n\n")

@@ -122,7 +122,7 @@ build_rl_script <- function(arg_playlist) {
   # home_radiologik_schedules <- "C:/cz_salsa/nipper/temp_rlprg/"
   home_radiologik_schedules <- paste0(home_prop("home_radiologik_win"), "Schedule/")
   nxt_sched_nbr <- 1L + dir_ls(path = home_radiologik_schedules) |> 
-    as_tibble() |> nrow
+    as_tibble() |> nrow()
   
   script_file_name <- sprintf(paste0("%03d - ", 
                                      paste0(str_sub(playlist, 1, 4),
@@ -167,22 +167,24 @@ rls_dagletters <- function(some_playlist) {
 
 rls_lengte <- function(some_playlist) {
   # some_playlist <- "20180603_wo07.060_de_titel_klassiek"
-  rls_lengte_result <- str_sub(some_playlist, 15, 17) |> as.integer |> as.character
+  rls_lengte_result <- str_sub(some_playlist, 15, 17) |> as.integer() |> as.character()
 }
 
 rls_30m_blokken <- function(some_playlist){
   # some_playlist <- "20180603_wo07.180_de_titel_klassiek"
-  rls_30m_blokken_result <- some_playlist |> str_sub(12, 13) |> as.integer
+  rls_30m_blokken_result <- some_playlist |> str_sub(12, 13) |> as.integer()
   rls_30m_blokken_result <- as.character(2 * rls_30m_blokken_result)
 }
 
 rls_venster <- function(some_playlist) {
   # !TEST! # some_playlist <- "20181231_wo00.420_de_nacht_klassiek"
-  venster_datum_start <- str_sub(some_playlist, 1, 8) |> ymd
+  venster_datum_start <- str_sub(some_playlist, 1, 8) |> ymd()
   venster_datum_stop <- venster_datum_start + days(1)
   rl_date_fmt <- stamp_date("23 Mar 2018", locale = "C", quiet = T)
-  venster_datum_start %<>% rl_date_fmt |> str_replace(pattern = "mei\\.", replacement = "mei ")
-  venster_datum_stop %<>% rl_date_fmt |> str_replace(pattern = "mei\\.", replacement = "mei ")
+  venster_datum_start <- venster_datum_start |> 
+    rl_date_fmt() |> str_replace(pattern = "mei\\.", replacement = "mei ")
+  venster_datum_stop <- venster_datum_stop |> 
+    rl_date_fmt() |> str_replace(pattern = "mei\\.", replacement = "mei ")
   rls_venster_result <- c(venster_datum_start, venster_datum_stop)
 }
 
@@ -195,8 +197,8 @@ rls_venster <- function(some_playlist) {
 # Daar zit het probleem. Omdat de schatting meestal te hoog is, wordt de aanvulling te kort. 
 # De fill daarom altijd uitvoeren met tracks van minstens 15 minuten. De playlist zal dan meestal 
 # veel te lang worden, maar de interrupt van het volgende programma zal hem op tijd uitfaden. 
-rls_fill <- function(some_playlist) {
-  # some_playlist <- "20181231_wo00.420_de_nacht_klassiek"
-  fill_start <- some_playlist |> str_sub(15, 17) |> as.integer |> -1
-  rls_fill_result <- c(str_c(fill_start, ":54"), str_c(fill_start, ":59"))
-}
+# rls_fill <- function(some_playlist) {
+#   # some_playlist <- "20181231_wo00.420_de_nacht_klassiek"
+#   fill_start <- some_playlist |> str_sub(15, 17) |> as.integer() |> -1
+#   rls_fill_result <- c(str_c(fill_start, ":54"), str_c(fill_start, ":59"))
+# }

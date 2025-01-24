@@ -8,7 +8,7 @@ pacman::p_load(knitr, rmarkdown, RCurl, readr, futile.logger, DBI, officer, httr
 home_prop <- function(prop) {
   prop_name <- paste0(prop, ".", host)
   prop <- config[[prop_name]] |> 
-    curlEscape  |>  
+    curlEscape()  |>  
     str_replace_all(pattern = "\\%2F", replacement = "/")
 }
 
@@ -63,7 +63,8 @@ repeat {
            post_id,
            pl_name = playlist_name)
   
-  playlists.2 <- playlists.1 |> left_join(playlists_his)
+  playlists.2 <- playlists.1 |> 
+    left_join(playlists_his, by = join_by(pl_date, pl_start))
   
   # + check pl's compleet ----
   playlists.2_err <- playlists.2 |> filter(is.na(pl_name))
@@ -111,8 +112,8 @@ repeat {
   
   # + merge ----
   playlists.3 <- playlists.2 |> 
-    left_join(blocks.1) |> 
-    left_join(tracks.1) |> 
+    left_join(blocks.1, by = join_by(pl_id)) |> 
+    left_join(tracks.1, by = join_by(block_id)) |> 
     select(-datetime_created, -track_number, -deleted)
   
   # log aangeboden playlists ----
@@ -120,7 +121,10 @@ repeat {
   playlists.5 <- playlists.3 |> filter(pl_state == 1)
   
   # niets aangeboden: stop ----
-  if (nrow(playlists.4) == 0) break
+  if (nrow(playlists.4) == 0) {
+    flog.info("Geen playlists aangeboden", name = "nsbe_log")
+    break
+  }
   
   pl_log_names <- str_flatten(playlists.4$pl_name, collapse = "\n")
   pl_log_posts <- str_flatten(playlists.4$post_id, collapse = ", ")
@@ -156,7 +160,7 @@ repeat {
     sqlstmt <- sprintf("select display_name as user_name, id as user_id from wp_users where id in %s;", 
                        bum_editor_list)
     bum_wp_users <- dbGetQuery(conn = ns_con, statement = sqlstmt)
-    bum.2 <- bum_wp_users |> left_join(bum.1)
+    bum.2 <- bum_wp_users |> left_join(bum.1, by = join_by(user_id))
 
     # + . gids koppen ----
     gd_wp_gidsinfo_header_NL <- gd_wp_gidsinfo_header |> 
@@ -179,8 +183,8 @@ repeat {
       filter(!is.na(user_id))
     
     bum.3 <- bum.2 |> 
-      left_join(titel_slugs) |> 
-      left_join(redacteur_slugs) |> 
+      left_join(titel_slugs, by = join_by(title_id)) |> 
+      left_join(redacteur_slugs, by = join_by(user_id)) |> 
       select(pl_name,
              user_id,
              user_name,
@@ -323,7 +327,7 @@ repeat {
       
       # + blokken ---- 
       for (blok in blokken$vt_blok_letter) {
-        cur_pres <- cur_pl |> as_tibble |> 
+        cur_pres <- cur_pl |> as_tibble() |> 
           mutate(
             duur = "",
             audiofile = get_bumper_audio(pm_playlist = cur_pl, pm_blok = blok, pm_stack = bumper_stack),
@@ -368,7 +372,7 @@ repeat {
       }
       
       # + AF-blok ----
-      cur_pres <- cur_pl |> as_tibble |> 
+      cur_pres <- cur_pl |> as_tibble() |> 
         mutate(
           duur = "",
           audiofile = get_bumper_audio(pm_playlist = cur_pl, pm_blok = "SLOT", pm_stack = bumper_stack),
@@ -535,7 +539,7 @@ repeat {
       
       # sluitletter <- paste0("NS", cur_pl_nieuw$post_id, LETTERS[1 + nrow(blokken)]) |> unique()
       sluit_idx <- paste0("NS", cur_pl_nieuw$post_id, "_", (1 + max(cur_pl_nieuw$block_order))) |> unique()
-      sluitblok <- sluit_idx |> as_tibble |> setNames("vt_blok_letter")
+      sluitblok <- sluit_idx |> as_tibble() |> setNames("vt_blok_letter")
       blokken <- bind_rows(blokken, sluitblok) 
       
       playlist_id_df <- cur_pl_nieuw |> 
@@ -550,7 +554,7 @@ repeat {
       
       # + blokken ---- 
       for (blok in blokken$vt_blok_letter) {
-        cur_pres <- cur_pl |> as_tibble |> 
+        cur_pres <- cur_pl |> as_tibble() |> 
           mutate(
             duur = "",
             audiofile = paste0("file://", vt_blok_pad, blok, ".aif"),
@@ -671,11 +675,11 @@ repeat {
     
   }
   
-  dbDisconnect(ns_con)
-  
   # exit MCL
   break
 }
+
+dbDisconnect(ns_con)
 
 # + start RL-scheduler ----
 if (!RL_scheduler_running) {
