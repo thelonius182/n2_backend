@@ -9,14 +9,14 @@ home_draaiboeken: "//CZ-SYNOLOGY/PROGRAMMAS/Presentatie&Techniek/Programmaformul
 # home_draaiboeken: "//192.168.1.81/Server RAID disk/Shared Items/Kantoor/PROGRAMMAS/Presentatie&Techniek/Programmaformulieren/01_nipper_draaiboeken/"
 # home_draaiboeken: "//macserver/01_nipper_draaiboeken/"
 # nip_xpr_gd_reg: "Nipper Express 0.2.FoSa"
-nip_nxt_gd_reg: "NipperNext"
+# nip_nxt_gd_reg: "NipperNext"
 
 # host: "logmac"
 host: "uzmtwo"
 
 url_pfx: "docs.google.com/spreadsheets/d/"
-# url_nipper_next: "1U1aKx5CgZXfuQ3p491PFWKZWSE2TL87m1RErdleuMvQ"
-url_nipper_next: 1msW4enMK_LfiKEZWF1mY7qdZ8RolIyldH8q6ax9dv_4
+url_audio_locaties: 1msW4enMK_LfiKEZWF1mY7qdZ8RolIyldH8q6ax9dv_4
+url_wp_gidsinfo: 16DrvLEXi3mEa9AbSw28YBkYpCvyO1wXwBwaNi7HpBkA
 
 cz_rds_store: "C:/Users/nipper/cz_rds_store/branches/cz_gdrive/"
 gs_downloads: "C:/Users/nipper/Downloads/cz_downloads"

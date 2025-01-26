@@ -2,34 +2,34 @@
 # BUM klaarzetten ----
 if (exists("bum.3") && nrow(bum.3) > 0) {
     
-    ns_tracks <- playlists.6 %>% filter(pl_name %in% bum.3$pl_name)
+    ns_tracks <- playlists.6 |> filter(pl_name %in% bum.3$pl_name)
     
-    dummy_bumpers <- ns_tracks %>% 
-      filter(block_order == 1 & track_order == 1) %>% 
+    dummy_bumpers <- ns_tracks |> 
+      filter(block_order == 1 & track_order == 1) |> 
       mutate(block_order = 0, length = 30L)
     
     # + draaiboeken gids ----
-    drb_gids <- rbind(dummy_bumpers, ns_tracks) %>% 
-      # filter(track_order == 1) %>% 
-      arrange(pl_name, block_order, track_order) %>% 
-      group_by(pl_name) %>%
+    drb_gids <- rbind(dummy_bumpers, ns_tracks) |> 
+      # filter(track_order == 1) |> 
+      arrange(pl_name, block_order, track_order) |> 
+      group_by(pl_name) |>
       mutate(
         cum_tijd = np_sec2hms(cumsum(as.duration(length))),
-        cum_tijd = lag(cum_tijd, n = 1)) %>% 
+        cum_tijd = lag(cum_tijd, n = 1)) |> 
       mutate(
-        wallclock = get_wallclock(pm_cum_tijd = cum_tijd, pm_playlist = pl_name)) %>% 
-      filter(block_order != 0) %>% 
+        wallclock = get_wallclock(pm_cum_tijd = cum_tijd, pm_playlist = pl_name)) |> 
+      filter(block_order != 0) |> 
       select(-album, -recording_no, -c(pl_id:user_id), -c(block_order:track_id))
     
     # + update gids ----
     for (cur_pl in unique(ns_tracks$pl_name)) {
       
-      sql_post_date <- playlist2postdate(cur_pl) %>% as.character
+      sql_post_date <- playlist2postdate(cur_pl) |> as.character()
 
-      drb_gids_pl <- drb_gids %>% filter(pl_name == cur_pl)
+      drb_gids_pl <- drb_gids |> filter(pl_name == cur_pl)
       
-      koptekst <- drb_gids_pl %>% select(pl_name, componist) %>% distinct %>% 
-        group_by(pl_name) %>% summarise(werken_van = paste(componist, collapse = ", "))
+      koptekst <- drb_gids_pl |> select(pl_name, componist) |> distinct() |> 
+        group_by(pl_name) |> summarise(werken_van = paste(componist, collapse = ", "))
       
       # sql_gidstekst <- sprintf("Werken van %s.\n<!--more-->\n\n", koptekst$werken_van)
       sql_gidstekst <- "@HEADER\n<!--more-->\n\n"
@@ -50,9 +50,9 @@ if (exists("bum.3") && nrow(bum.3) > 0) {
             '<tr>\n<td>[track tijd="%s" text="%s %s"]\n<span>',
             drb_gids_pl$cum_tijd[q1],
             drb_gids_pl$wallclock[q1],
-            drb_gids_pl$titel[q1] %>% 
-              str_replace_all(pattern = '"',  "'") %>% 
-              str_replace_all(pattern = "\\x5B", replacement = "(") %>% 
+            drb_gids_pl$titel[q1] |> 
+              str_replace_all(pattern = '"',  "'") |> 
+              str_replace_all(pattern = "\\x5B", replacement = "(") |> 
               str_replace_all(pattern = "\\x5D", replacement = ")") 
           )
         sql_gidstekst <- paste0(sql_gidstekst, regel)
@@ -75,7 +75,7 @@ if (exists("bum.3") && nrow(bum.3) > 0) {
 &nbsp;
 &nbsp;'
       
-      sql_gidstekst <- paste0(sql_gidstekst, regel, "\n") %>% str_replace_all("[']", "&#39;")
+      sql_gidstekst <- paste0(sql_gidstekst, regel, "\n") |> str_replace_all("[']", "&#39;")
       
       upd_stmt01 <- sprintf(
         "select id from wp_posts where post_date = '%s' and post_type = 'programma' order by 1;",
@@ -84,22 +84,22 @@ if (exists("bum.3") && nrow(bum.3) > 0) {
       dsSql01 <- dbGetQuery(ns_con, upd_stmt01)
       
       # + gidskop bepalen ----
-      hdr_nl_df <- bum.3 %>% 
-        mutate(hdr_key = sub(".*\\.\\d{3}_(.*)", "\\1", pl_name, perl=TRUE)) %>% 
-        left_join(gd_wp_gidsinfo_header_NL) %>% 
+      hdr_nl_df <- bum.3 |> 
+        mutate(hdr_key = sub(".*\\.\\d{3}_(.*)", "\\1", pl_name, perl=TRUE)) |> 
+        left_join(gd_wp_gidsinfo_header_NL) |> 
         filter(pl_name == cur_pl)
       
-      hdr_en_df <- bum.3 %>% 
-        mutate(hdr_key = sub(".*\\.\\d{3}_(.*)", "\\1", pl_name, perl=TRUE)) %>% 
-        left_join(gd_wp_gidsinfo_header_EN) %>% 
+      hdr_en_df <- bum.3 |> 
+        mutate(hdr_key = sub(".*\\.\\d{3}_(.*)", "\\1", pl_name, perl=TRUE)) |> 
+        left_join(gd_wp_gidsinfo_header_EN) |> 
         filter(pl_name == cur_pl)
       
       for (u1 in 1:nrow(dsSql01)) {
 
         if (u1 == 1) {
-          sql_gidstekst1 <- sql_gidstekst %>% str_replace("@HEADER", hdr_nl_df$hdr_txt)
+          sql_gidstekst1 <- sql_gidstekst |> str_replace("@HEADER", hdr_nl_df$hdr_txt)
         } else {
-          sql_gidstekst1 <- sql_gidstekst %>% str_replace("@HEADER", hdr_en_df$hdr_txt)
+          sql_gidstekst1 <- sql_gidstekst |> str_replace("@HEADER", hdr_en_df$hdr_txt)
         }
         
         upd_stmt02 <- sprintf(
@@ -160,7 +160,7 @@ if (exists("bum.3") && nrow(bum.3) > 0) {
         dbExecute(ns_con, upd_stmt05)
       }
       
-      suppressMessages(stamped_format <- stamp("20191229_zo", orders = "%Y%0m%d_%a"))
+      stamped_format <- stamp("20191229_zo", orders = "%Y%0m%d_%a", quiet = T)
       dummy_pl <- paste0(stamped_format(cur_pl_date + days(7L)), str_sub(cur_pl, 12))
       flog.info("Gids replay bijgewerkt: %s", dummy_pl, name = "nsbe_log")
     }
@@ -171,34 +171,34 @@ if (exists("bum.3") && nrow(bum.3) > 0) {
 # VOT klaarzetten ----
 if (exists("vot.3") && nrow(vot.3) > 0) {
   
-  ns_tracks <- playlists.6 %>% filter(pl_name %in% vot.3$pl_name)
+  ns_tracks <- playlists.6 |> filter(pl_name %in% vot.3$pl_name)
   
-  dummy_bumpers <- ns_tracks %>% 
-    filter(block_order == 1 & track_order == 1) %>% 
+  dummy_bumpers <- ns_tracks |> 
+    filter(block_order == 1 & track_order == 1) |> 
     mutate(block_order = 0, length = 30L)
   
   # draaiboeken gids
-  drb_gids <- rbind(dummy_bumpers, ns_tracks) %>% 
-    # filter(track_order == 1) %>% 
-    arrange(pl_name, block_order, track_order) %>% 
-    group_by(pl_name) %>%
+  drb_gids <- rbind(dummy_bumpers, ns_tracks) |> 
+    # filter(track_order == 1) |> 
+    arrange(pl_name, block_order, track_order) |> 
+    group_by(pl_name) |>
     mutate(
       cum_tijd = np_sec2hms(cumsum(as.duration(length))),
-      cum_tijd = lag(cum_tijd, n = 1)) %>% 
+      cum_tijd = lag(cum_tijd, n = 1)) |> 
     mutate(
-      wallclock = get_wallclock(pm_cum_tijd = cum_tijd, pm_playlist = pl_name)) %>% 
-    filter(block_order != 0) %>% 
+      wallclock = get_wallclock(pm_cum_tijd = cum_tijd, pm_playlist = pl_name)) |> 
+    filter(block_order != 0) |> 
     select(-album, -recording_no, -c(pl_id:user_id), -c(block_order:track_id))
   
   # update gids ----
   for (cur_pl in unique(ns_tracks$pl_name)) {
     
-    sql_post_date <- playlist2postdate(cur_pl) %>% as.character
+    sql_post_date <- playlist2postdate(cur_pl) |> as.character()
     
-    drb_gids_pl <- drb_gids %>% filter(pl_name == cur_pl)
+    drb_gids_pl <- drb_gids |> filter(pl_name == cur_pl)
     
-    koptekst <- drb_gids_pl %>% select(pl_name, componist) %>% distinct %>% 
-      group_by(pl_name) %>% summarise(werken_van = paste(componist, collapse = ", "))
+    koptekst <- drb_gids_pl |> select(pl_name, componist) |> distinct() |> 
+      group_by(pl_name) |> summarise(werken_van = paste(componist, collapse = ", "))
     
     sql_gidstekst <- paste0("Werken van ", koptekst$werken_van, "\n<!--more-->\n\n")
     
@@ -211,9 +211,9 @@ if (exists("vot.3") && nrow(vot.3) > 0) {
           '<tr>\n<td>[track tijd="%s" text="%s %s"]\n<span>',
           drb_gids_pl$cum_tijd[q1],
           drb_gids_pl$wallclock[q1],
-          drb_gids_pl$titel[q1] %>% 
-            str_replace_all(pattern = '"',  "'") %>% 
-            str_replace_all(pattern = "\\x5B", replacement = "(") %>% 
+          drb_gids_pl$titel[q1] |> 
+            str_replace_all(pattern = '"',  "'") |> 
+            str_replace_all(pattern = "\\x5B", replacement = "(") |> 
             str_replace_all(pattern = "\\x5D", replacement = ")") 
         )
       sql_gidstekst <- paste0(sql_gidstekst, regel)
@@ -236,7 +236,7 @@ if (exists("vot.3") && nrow(vot.3) > 0) {
 &nbsp;
 &nbsp;'
     
-    sql_gidstekst <- paste0(sql_gidstekst, regel, "\n") %>% str_replace_all("[']", "&#39;")
+    sql_gidstekst <- paste0(sql_gidstekst, regel, "\n") |> str_replace_all("[']", "&#39;")
     
     qry_stmt01 <- sprintf(
       "select id from wp_posts where post_date = '%s' and post_type = 'programma' order by 1;",
@@ -298,7 +298,7 @@ if (exists("vot.3") && nrow(vot.3) > 0) {
       dbExecute(ns_con, upd_stmt05)
     }
     
-    suppressMessages(stamped_format <- stamp("20191229_zo", orders = "%Y%0m%d_%a"))
+    stamped_format <- stamp("20191229_zo", orders = "%Y%0m%d_%a", quiet = T)
     dummy_pl <- paste0(stamped_format(cur_pl_date + days(7L)), str_sub(cur_pl, 12))
     flog.info("Gids replay bijgewerkt: %s", dummy_pl, name = "nsbe_log")
   }
@@ -343,7 +343,7 @@ ORDER BY 1;
 "
 
 ns_editor_info <- dbGetQuery(conn = ns_con, statement = sql_sel_ed_info)
-ns_editor_info.1 <- ns_editor_info %>% mutate(post_id_chr = as.character(post_id))
+ns_editor_info.1 <- ns_editor_info |> mutate(post_id_chr = as.character(post_id))
 
 for (pid in ns_editor_info.1$post_id_chr) {
   
@@ -362,7 +362,7 @@ for (pid in ns_editor_info.1$post_id_chr) {
   ed_term_rel <- dbGetQuery(ns_con, sql_sel_tr1)
   flog.info("current editor found: %s", as.character(ed_term_rel$term_taxonomy_id), name = "nsbe_log")
   
-  ns_ed_info <- ns_editor_info.1 %>% filter(post_id_chr == pid)
+  ns_ed_info <- ns_editor_info.1 |> filter(post_id_chr == pid)
   flog.info("change web page editor to %s", as.character(ns_ed_info$editor_id_website), name = "nsbe_log")
 
   sql_upd_tr1 <- sprintf(

@@ -24,30 +24,7 @@ get_wallclock <- function(pm_cum_tijd, pm_playlist) {
   # flog.info("@wallclck out: %s", wallclock, name = "nipperlog")
 }
 
-get_wp_conn <- function() {
-  
-  db_env <- "wpprd_mariadb"
-
-  ### TEST
-  # db_env <- "wpdev_mariadb"
-  ### TEST
-  
-  flog.appender(appender.file("C:/Users/gergiev/Logs/nipper_uzm_two.log"), name = "nipperlog")
-  
-  result <- tryCatch( {
-    grh_conn <- dbConnect(odbc::odbc(), db_env, timeout = 10)
-  },
-  error = function(cond) {
-    flog.error("Wordpress database onbereikbaar (dev: check PuTTY)", name = "nipperlog")
-    return("connection-error")
-  }
-  )
-  return(result)
-}
-
 get_ns_conn <- function(db_env) {
-  
-  # fa <- flog.appender(appender.file("c:/cz_salsa/Logs/nipperstudio_backend.log"), name = "nsbe_log")
   
   if (db_env == "DEV") {
     db_env <- "wpdev_mariadb"
@@ -55,14 +32,15 @@ get_ns_conn <- function(db_env) {
     db_env <- "wpprd_mariadb"
   } 
   
-  result <- tryCatch( {
-    dbConnect(odbc::odbc(), db_env, timeout = 10, encoding = "CP850")
-  },
-  error = function(cond) {
-    flog.error(sprintf("Verbinding mislukt: %s", cond$message), name = "nsbe_log")
-    return("Verbinding is mislukt")
-  }
-  )
+  result <- tryCatch( 
+    {
+      dbConnect(odbc::odbc(), db_env, timeout = 10, encoding = "CP850")
+    },
+    error = function(e1) {
+      flog.error("Verbinding mislukt: %s", conditionMessage(e1), name = "nsbe_log")
+      return("Verbinding is mislukt")
+    })
+  
   return(result)
 }
 
@@ -133,32 +111,20 @@ create_form <- function(arg_playlist) {
     flog.info(sprintf("Audio-bestelformulier gereed: %s", arg_playlist), name = "nsbe_log")
 }
 
-gd_wp_gidsinfo <- function(arg_sheet) {
-  result <- tryCatch( {
-    gds <- read_sheet(ss = "16DrvLEXi3mEa9AbSw28YBkYpCvyO1wXwBwaNi7HpBkA", sheet = arg_sheet)
-  },
-  error = function(cond) {
-    flog.error(sprintf("Verbinding met GoogleDrive (WP-gidsinfo) mislukt: %s", cond$message), name = "nsbe_log")
-    return("GD-error")
-  }
-  )
-  return(result)
-}
-
 get_replay_playlist <- function(arg_pl) {
   
   pl_home <- paste0(home_prop("home_radiologik_win"), "Programs/")
     
   result <- arg_pl
   
-  # preferably the one that is 6 months old 
+  # preferably the one from 25 weeks ago (calculate wrt arg_pl which already is 7 days old, so -168 not -175) 
   pl_date <- playlist2postdate(arg_pl)
-  suppressMessages(stamped_format <- stamp("20191229_zo", orders = "%Y%0m%d_%a"))
+  stamped_format <- stamp("20191229_zo", orders = "%Y%0m%d_%a", quiet = T)
   pl_his <- paste0(stamped_format(pl_date - days(168L)), str_sub(arg_pl, 12))
   pl_candidate <- dir_ls(pl_home, regexp = str_sub(pl_his, 1, 13))
   
   if (length(pl_candidate) == 1) {
-    result <- path_file(pl_candidate) %>% str_replace("\\.rlprg", "")
+    result <- path_file(pl_candidate) |> str_replace("\\.rlprg", "")
   }
   
   return(result)

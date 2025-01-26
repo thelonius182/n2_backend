@@ -1,2 +1,2 @@
 # n2_backend
-NipperNext
+NipperStudio
