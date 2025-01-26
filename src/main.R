@@ -17,10 +17,11 @@ config <- read_yaml("config_nip_stu.yaml")
 rds_home <- "C:/cz_salsa/cz_exchange/"
 filter <- dplyr::filter # voorkom verwarring met stats::filter
 
-source(config$toolbox, encoding = "UTF-8") # functions only
-source("src/compile_schedulerscript.R", encoding = "UTF-8") # functions only 
-source("src/compile_hostscript_docx.R", encoding = "UTF-8") # functions only 
-source("src/shared_functions.R", encoding = "UTF-8") # functions only 
+# 4 x functions only
+source(config$toolbox, encoding = "UTF-8") 
+source("src/compile_schedulerscript.R", encoding = "UTF-8")
+source("src/compile_hostscript_docx.R", encoding = "UTF-8")
+source("src/shared_functions.R", encoding = "UTF-8")
 
 host <- config$host
 home_vt_audio_mac <- home_prop("home_vt_audio_mac")
@@ -31,7 +32,7 @@ RL_scheduler_running <- TRUE
 
 fa <- flog.appender(appender.file("c:/cz_salsa/Logs/ns_bum_vot.log"), name = "nsbe_log")
 flog.info("
-= = = = = NipperStudio start (versie 2025-01-20) = = = = =", name = "nsbe_log")
+= = = = = NipperStudio start (versie 2025-01-26) = = = = =", name = "nsbe_log")
 
 # start MCL
 repeat { 
@@ -122,7 +123,7 @@ repeat {
   
   # niets aangeboden: stop ----
   if (nrow(playlists.4) == 0) {
-    flog.info("Geen playlists aangeboden", name = "nsbe_log")
+    flog.info("Geen uitzendingen aangeboden", name = "nsbe_log")
     break
   }
   
@@ -207,7 +208,6 @@ repeat {
     }
     
     bum.4 <- bum.3 |> select(-user_id, -user_name, -title_id, -title_name) |> distinct() |> 
-      # bum.4 <- bum.3 |> select(-pl_name, -user_id, -user_name, -title_id, -title_name) |> distinct() |> 
       mutate(dir_transit_aan = if_else(pl_transit == "LOB", "laag/aan/", "hoog/aan/"),
              dir_transit_over = if_else(pl_transit == "LOB", "laag/over/", "hoog/over/"),
              dir_transit_af = if_else(pl_transit == "LOB", 
@@ -296,132 +296,135 @@ repeat {
       group_by(pl_id, block_order, block_id) |> 
       mutate(blokduur_sec = sum(length)) |> ungroup()
     
-    for (cur_pl in bum.3$pl_name) {
-      
-      duration_rlprg <- 3600L * as.numeric(str_sub(cur_pl, 15, 17)) / 60L
-      
-      rlprg_file <- bum.3 |> filter(pl_name == cur_pl) |> 
-        mutate(cur_duur_parm = paste0("Duration:", duration_rlprg)) |> 
-        select(cur_duur_parm) |> 
-        unite(col = regel, sep = "\t")
-      
-      cur_pl_nieuw <- playlists.6 |> filter(pl_name == cur_pl)
-      
-      blokken <- cur_pl_nieuw |> distinct(block_order) |> 
-        mutate(bid = paste0("RL_BLK_", block_order)) |> 
-        select(vt_blok_letter = bid)
-      
-      # + bumpervolgorde ---- 
-      bumper_stack <- faststack()
-      
-      bu_seq <- random_select(c(1:5), nrow(blokken) - 1)
-      print(bu_seq)
-      
-      for (i1 in length(bu_seq):1) {
-        bumper_stack$push(bu_seq[i1])
+    # + RL-sched's, PL's en draaiboeken maken ----
+    tryCatch(
+      {
+        for (cur_pl in bum.3$pl_name) {
+          
+          duration_rlprg <- 3600L * as.numeric(str_sub(cur_pl, 15, 17)) / 60L
+          
+          rlprg_file <- bum.3 |> filter(pl_name == cur_pl) |> 
+            mutate(cur_duur_parm = paste0("Duration:", duration_rlprg)) |> 
+            select(cur_duur_parm) |> 
+            unite(col = regel, sep = "\t")
+          
+          cur_pl_nieuw <- playlists.6 |> filter(pl_name == cur_pl)
+          
+          blokken <- cur_pl_nieuw |> distinct(block_order) |> 
+            mutate(bid = paste0("RL_BLK_", block_order)) |> 
+            select(vt_blok_letter = bid)
+          
+          # + bumpervolgorde ---- 
+          bumper_stack <- faststack()
+          
+          bu_seq <- random_select(c(1:5), nrow(blokken) - 1)
+          print(bu_seq)
+          
+          for (i1 in length(bu_seq):1) {
+            bumper_stack$push(bu_seq[i1])
+          }
+          
+          # + blokken ---- 
+          for (blok in blokken$vt_blok_letter) {
+            cur_pres <- cur_pl |> as_tibble() |> 
+              mutate(
+                duur = "",
+                audiofile = get_bumper_audio(pm_playlist = cur_pl, pm_blok = blok, pm_stack = bumper_stack),
+                const_false = "FALSE",
+                start_sec_sinds_middernacht = if_else(blok == "RL_BLK_1",
+                                                      cur_pl_nieuw$pl_start[1] * 3600L,
+                                                      -1L), # -1 = direct erna afspelen
+                fwdtab1 = "",
+                fwdtab2 = "",
+                fwdtab3 = "",
+                speler_regel01 = cur_pl_nieuw$pl_transit[1],
+                opname_hfd_sub = "",
+                speler_regel02 = blok) |> 
+              select(-value) |> 
+              unite(col = regel, sep = "\t")
+            
+            cur_block_order <- match(blok, blokken$vt_blok_letter)
+            
+            cur_tracks_in_blok <- cur_pl_nieuw |> 
+              filter(pl_name == cur_pl & block_order == cur_block_order) |> 
+              # if recording_no has several tracks, put each track in a separate row
+              separate_rows(recording_no, sep = ", ") |> 
+              mutate(
+                duur = "",
+                audiofile = paste0("file:///Volumes/Data/Nipper/muziekweb_audio/", recording_no, ".wav"),
+                const_false = "FALSE",
+                start_sec_sinds_middernacht = -1, # "direct erna afspelen"
+                fwdtab1 = "",
+                fwdtab2 = "",
+                fwdtab3 = "",
+                speler_regel01 = componist,
+                opname_hfd_sub = paste0("NS", post_id[1], 
+                                        "-", 
+                                        blokken$vt_blok_letter[cur_block_order]),
+                speler_regel02 = titel
+              ) |> 
+              select(duur, audiofile, const_false, start_sec_sinds_middernacht, 
+                     fwdtab1, fwdtab2, fwdtab3, speler_regel01, opname_hfd_sub, speler_regel02) |> 
+              unite(col = regel, sep = "\t")
+            
+            rlprg_file <- bind_rows(rlprg_file, cur_pres, cur_tracks_in_blok)
+          }
+          
+          # + AF-blok ----
+          cur_pres <- cur_pl |> as_tibble() |> 
+            mutate(
+              duur = "",
+              audiofile = get_bumper_audio(pm_playlist = cur_pl, pm_blok = "SLOT", pm_stack = bumper_stack),
+              const_false = "FALSE",
+              start_sec_sinds_middernacht = -1L, 
+              fwdtab1 = "",
+              fwdtab2 = "",
+              fwdtab3 = "",
+              speler_regel01 = cur_pl_nieuw$pl_transit[1],
+              opname_hfd_sub = "",
+              speler_regel02 = "SLOT") |> 
+            select(-value) |> 
+            unite(col = regel, sep = "\t")
+          
+          rlprg_file <- bind_rows(rlprg_file, cur_pres)
+          
+          cur_pl <- cur_pl |> str_replace_all(pattern = "[.]", replacement = "-")
+          
+          # + write RL-playlist ----
+          home_radiologik_playlists <- paste0(home_prop("home_radiologik_win"), "Programs/")
+          rlprg_file_name <- paste0(home_radiologik_playlists, cur_pl, ".rlprg")
+          write.table(x = rlprg_file, file = rlprg_file_name, row.names = FALSE, col.names = FALSE, 
+                      sep = "\t", quote = FALSE, fileEncoding = "UTF-8") 
+          
+          flog.info("RL-playlist toegevoegd: %s", rlprg_file_name, name = "nsbe_log")
+          
+          # + write NEW schedule ----
+          build_rl_script(cur_pl)
+          
+          # + write REPLAY schedule ----
+          cur_pl_date <- playlist2postdate(cur_pl)
+          stamped_format <- stamp("20191229_zo", orders = "%Y%0m%d_%a", quiet = T)
+          replay_sched <- paste0(stamped_format(cur_pl_date + days(7L)), str_sub(cur_pl, 12))
+          replay_pl <- get_replay_playlist(cur_pl)
+          RL_replay <- c(replay_sched, replay_pl)
+          build_rl_script(RL_replay)
+        }
+        
+        # + gids bijwerken ----
+        source("src/update_gids.R", encoding = "UTF-8")
+        
+        # + MuW audio order forms ----
+        form_pls <- bum.1 |> anti_join(bum.3_err) |> select(pl_name)
+        
+        for (cur_form_pl in form_pls$pl_name) {
+          create_form(cur_form_pl) 
+        }
+      },
+      error = function(e1) {
+        flog.error("Segmentfout bumper-PL's: %s", conditionMessage(e1), name = "nsbe_log")
+        break
       }
-      
-      # vt_blok_pad <- audio_locaties |> filter(sleutel == "vt_blok", functie == "pres_blok") |> 
-      #   mutate(locatie = paste0(home_vt_audio_mac, locatie)) |> 
-      #   select(locatie) 
-      
-      # + blokken ---- 
-      for (blok in blokken$vt_blok_letter) {
-        cur_pres <- cur_pl |> as_tibble() |> 
-          mutate(
-            duur = "",
-            audiofile = get_bumper_audio(pm_playlist = cur_pl, pm_blok = blok, pm_stack = bumper_stack),
-            const_false = "FALSE",
-            start_sec_sinds_middernacht = if_else(blok == "RL_BLK_1",
-                                                  cur_pl_nieuw$pl_start[1] * 3600L,
-                                                  -1L), # -1 = direct erna afspelen
-            fwdtab1 = "",
-            fwdtab2 = "",
-            fwdtab3 = "",
-            speler_regel01 = cur_pl_nieuw$pl_transit[1],
-            opname_hfd_sub = "",
-            speler_regel02 = blok) |> 
-          select(-value) |> 
-          unite(col = regel, sep = "\t")
-        
-        cur_block_order <- match(blok, blokken$vt_blok_letter)
-        
-        cur_tracks_in_blok <- cur_pl_nieuw |> 
-          filter(pl_name == cur_pl & block_order == cur_block_order) |> 
-          # if recording_no has several tracks, put each track in a separate row
-          separate_rows(recording_no, sep = ", ") |> 
-          mutate(
-            duur = "",
-            audiofile = paste0("file:///Volumes/Data/Nipper/muziekweb_audio/", recording_no, ".wav"),
-            const_false = "FALSE",
-            start_sec_sinds_middernacht = -1, # "direct erna afspelen"
-            fwdtab1 = "",
-            fwdtab2 = "",
-            fwdtab3 = "",
-            speler_regel01 = componist,
-            opname_hfd_sub = paste0("NS", post_id[1], 
-                                    "-", 
-                                    blokken$vt_blok_letter[cur_block_order]),
-            speler_regel02 = titel
-          ) |> 
-          select(duur, audiofile, const_false, start_sec_sinds_middernacht, 
-                 fwdtab1, fwdtab2, fwdtab3, speler_regel01, opname_hfd_sub, speler_regel02) |> 
-          unite(col = regel, sep = "\t")
-        
-        rlprg_file <- bind_rows(rlprg_file, cur_pres, cur_tracks_in_blok)
-      }
-      
-      # + AF-blok ----
-      cur_pres <- cur_pl |> as_tibble() |> 
-        mutate(
-          duur = "",
-          audiofile = get_bumper_audio(pm_playlist = cur_pl, pm_blok = "SLOT", pm_stack = bumper_stack),
-          const_false = "FALSE",
-          start_sec_sinds_middernacht = -1L, 
-          fwdtab1 = "",
-          fwdtab2 = "",
-          fwdtab3 = "",
-          speler_regel01 = cur_pl_nieuw$pl_transit[1],
-          opname_hfd_sub = "",
-          speler_regel02 = "SLOT") |> 
-        select(-value) |> 
-        unite(col = regel, sep = "\t")
-      
-      rlprg_file <- bind_rows(rlprg_file, cur_pres)
-      
-      cur_pl <- cur_pl |> str_replace_all(pattern = "[.]", replacement = "-")
-      
-      # + write RL-playlist ----
-      # home_radiologik_playlists <- "C:/cz_salsa/nipper/temp_rlprg/"
-      home_radiologik_playlists <- paste0(home_prop("home_radiologik_win"), "Programs/")
-      rlprg_file_name <- paste0(home_radiologik_playlists, cur_pl, ".rlprg")
-      write.table(x = rlprg_file, file = rlprg_file_name, row.names = FALSE, col.names = FALSE, 
-                  sep = "\t", quote = FALSE, fileEncoding = "UTF-8") 
-      
-      flog.info("RL-playlist toegevoegd: %s", rlprg_file_name, name = "nsbe_log")
-      
-      # + write NEW schedule ----
-      build_rl_script(cur_pl)
-      
-      # + write REPLAY schedule ----
-      cur_pl_date <- playlist2postdate(cur_pl)
-      stamped_format <- stamp("20191229_zo", orders = "%Y%0m%d_%a", quiet = T)
-      replay_sched <- paste0(stamped_format(cur_pl_date + days(7L)), str_sub(cur_pl, 12))
-      replay_pl <- get_replay_playlist(cur_pl)
-      RL_replay <- c(replay_sched, replay_pl)
-      build_rl_script(RL_replay)
-    }
-    
-    # + gids bijwerken ----
-    flog.info("Gids bijwerken...", name = "nsbe_log")
-    source("src/update_gids.R", encoding = "UTF-8")
-    
-    # + MuW audio order forms ----
-    form_pls <- bum.1 |> anti_join(bum.3_err) |> select(pl_name)
-    
-    for (cur_form_pl in form_pls$pl_name) {
-      create_form(cur_form_pl) 
-    }
+    )
     
     # + playlists voltooid melden ----
     pl_finshed <- bum.1 |> anti_join(bum.3_err) |> 
@@ -438,9 +441,7 @@ repeat {
                               "')")
       sql_stmt <- sprintf("update wp_nipper_main_playlists set finished = 2 where playlist_name in %s",
                           pl_passed_str)
-      
       dbExecute(conn = ns_con, statement = sql_stmt)
-      
       flog.info(paste0("Geslaagd: ", pl_passed_str), name = "nsbe_log")
     }
     
@@ -454,9 +455,7 @@ repeat {
                               "')")
       sql_stmt <- sprintf("update wp_nipper_main_playlists set finished = 3 where playlist_name in %s",
                           pl_failed_str)
-      
       dbExecute(conn = ns_con, statement = sql_stmt)
-      
       flog.info(paste0("Mislukt: ", pl_failed_str), name = "nsbe_log")
     }
   }
@@ -521,120 +520,122 @@ repeat {
       group_by(pl_id, block_order, block_id) |> 
       mutate(blokduur_sec = sum(length)) |> ungroup()
 
-    for (cur_pl in vot.3$pl_name) {
-      
-      duration_rlprg <- 3600L * as.numeric(str_sub(cur_pl, 15, 17)) / 60L
-      
-      rlprg_file <- vot.3 |> filter(pl_name == cur_pl) |> 
-        mutate(cur_duur_parm = paste0("Duration:", duration_rlprg)) |> 
-        select(cur_duur_parm) |> 
-        unite(col = regel, sep = "\t")
-      
-      cur_pl_nieuw <- playlists.6 |> filter(pl_name == cur_pl)
-      
-      blokken <- cur_pl_nieuw |> select(post_id, block_order) |> distinct() |> 
-        # mutate(bid = paste0("NS", post_id, LETTERS[block_order])) |> 
-        mutate(bid = paste0("NS", post_id, "_", block_order)) |> 
-        select(vt_blok_letter = bid)
-      
-      # sluitletter <- paste0("NS", cur_pl_nieuw$post_id, LETTERS[1 + nrow(blokken)]) |> unique()
-      sluit_idx <- paste0("NS", cur_pl_nieuw$post_id, "_", (1 + max(cur_pl_nieuw$block_order))) |> unique()
-      sluitblok <- sluit_idx |> as_tibble() |> setNames("vt_blok_letter")
-      blokken <- bind_rows(blokken, sluitblok) 
-      
-      playlist_id_df <- cur_pl_nieuw |> 
-        mutate(post_id_chr = as.character(post_id),
-               plid = as.integer(post_id_chr)) |> slice(1)
-      
-      playlist_id <- playlist_id_df$plid
-      
-      vt_blok_pad <- audio_locaties |> filter(sleutel == "vt_blok", functie == "pres_blok") |> 
-        mutate(locatie = paste0(home_vt_audio_mac, locatie)) |> 
-        select(locatie) 
-      
-      # + blokken ---- 
-      for (blok in blokken$vt_blok_letter) {
-        cur_pres <- cur_pl |> as_tibble() |> 
-          mutate(
-            duur = "",
-            audiofile = paste0("file://", vt_blok_pad, blok, ".aif"),
-            const_false = "FALSE",
-            start_sec_sinds_middernacht = if_else(str_detect(blok, pattern = ".*_A$"),
-                                                  cur_pl_nieuw$pl_start[1] * 3600L,
-                                                  -1L), # -1 = direct erna afspelen
-            fwdtab1 = "",
-            fwdtab2 = "",
-            fwdtab3 = "",
-            speler_regel01 = "voicetracking",
-            opname_hfd_sub = "",
-            speler_regel02 = paste0("blok ", blok)) |> 
-          select(-value) |> 
-          unite(col = regel, sep = "\t")
+    # + RL-sched's, PL's en draaiboeken maken ----
+    tryCatch(
+      {
+        for (cur_pl in vot.3$pl_name) {
+          
+          duration_rlprg <- 3600L * as.numeric(str_sub(cur_pl, 15, 17)) / 60L
+          
+          rlprg_file <- vot.3 |> filter(pl_name == cur_pl) |> 
+            mutate(cur_duur_parm = paste0("Duration:", duration_rlprg)) |> 
+            select(cur_duur_parm) |> 
+            unite(col = regel, sep = "\t")
+          
+          cur_pl_nieuw <- playlists.6 |> filter(pl_name == cur_pl)
+          
+          blokken <- cur_pl_nieuw |> select(post_id, block_order) |> distinct() |> 
+            mutate(bid = paste0("NS", post_id, "_", block_order)) |> 
+            select(vt_blok_letter = bid)
+          
+          sluit_idx <- paste0("NS", cur_pl_nieuw$post_id, "_", (1 + max(cur_pl_nieuw$block_order))) |> unique()
+          sluitblok <- sluit_idx |> as_tibble() |> setNames("vt_blok_letter")
+          blokken <- bind_rows(blokken, sluitblok) 
+          
+          playlist_id_df <- cur_pl_nieuw |> 
+            mutate(post_id_chr = as.character(post_id),
+                   plid = as.integer(post_id_chr)) |> slice(1)
+          
+          playlist_id <- playlist_id_df$plid
+          
+          vt_blok_pad <- audio_locaties |> filter(sleutel == "vt_blok", functie == "pres_blok") |> 
+            mutate(locatie = paste0(home_vt_audio_mac, locatie)) |> 
+            select(locatie) 
+          
+          # + blokken ---- 
+          for (blok in blokken$vt_blok_letter) {
+            cur_pres <- cur_pl |> as_tibble() |> 
+              mutate(
+                duur = "",
+                audiofile = paste0("file://", vt_blok_pad, blok, ".aif"),
+                const_false = "FALSE",
+                start_sec_sinds_middernacht = if_else(str_detect(blok, pattern = ".*_A$"),
+                                                      cur_pl_nieuw$pl_start[1] * 3600L,
+                                                      -1L), # -1 = direct erna afspelen
+                fwdtab1 = "",
+                fwdtab2 = "",
+                fwdtab3 = "",
+                speler_regel01 = "voicetracking",
+                opname_hfd_sub = "",
+                speler_regel02 = paste0("blok ", blok)) |> 
+              select(-value) |> 
+              unite(col = regel, sep = "\t")
+            
+            cur_block_order <- match(blok, blokken$vt_blok_letter)
+            
+            cur_tracks_in_blok <- cur_pl_nieuw |> 
+              filter(pl_name == cur_pl & block_order == cur_block_order) |> 
+              # if recording_no has several tracks, put each track in a separate row
+              separate_rows(recording_no, sep = ", ") |> 
+              mutate(
+                duur = "",
+                audiofile = paste0("file:///Volumes/Data/Nipper/muziekweb_audio/", recording_no, ".wav"),
+                const_false = "FALSE",
+                start_sec_sinds_middernacht = -1, # "direct erna afspelen"
+                fwdtab1 = "",
+                fwdtab2 = "",
+                fwdtab3 = "",
+                speler_regel01 = componist,
+                opname_hfd_sub = blokken$vt_blok_letter[cur_block_order],
+                speler_regel02 = titel
+              ) |> 
+              select(duur, audiofile, const_false, start_sec_sinds_middernacht, 
+                     fwdtab1, fwdtab2, fwdtab3, speler_regel01, opname_hfd_sub, speler_regel02) |> 
+              unite(col = regel, sep = "\t")
+            
+            rlprg_file <- bind_rows(rlprg_file, cur_pres, cur_tracks_in_blok)
+          }
+          
+          cur_pl <- cur_pl |> str_replace_all(pattern = "[.]", replacement = "-")
+          
+          # + build RL-playlists ----
+          home_radiologik_playlists <- paste0(home_prop("home_radiologik_win"), "Programs/")
+          rlprg_file_name <- paste0(home_radiologik_playlists, cur_pl, ".rlprg")
+          write.table(x = rlprg_file, file = rlprg_file_name, row.names = FALSE, col.names = FALSE, 
+                      sep = "\t", quote = FALSE, fileEncoding = "UTF-8") 
+          
+          flog.info("RL-playlist toegevoegd: %s", rlprg_file_name, name = "nsbe_log")
+          
+          # + build NEW schedule ----
+          build_rl_script(cur_pl)
+          
+          # + build REPLAY schedule ----
+          cur_pl_date <- playlist2postdate(cur_pl)
+          stamped_format <- stamp("20191229_zo", orders = "%Y%0m%d_%a", quiet = T)
+          replay_sched <- paste0(stamped_format(cur_pl_date + days(7L)), str_sub(cur_pl, 12))
+          replay_pl <- get_replay_playlist(cur_pl)
+          RL_replay <- c(replay_sched, replay_pl)
+          build_rl_script(RL_replay)
+          
+          # + build host scripts ----
+          build_host_script(cur_pl_nieuw$pl_name[1])
+        }
         
-        cur_block_order <- match(blok, blokken$vt_blok_letter)
+        # + gids bijwerken ----
+        source("src/update_gids.R", encoding = "UTF-8")
         
-        cur_tracks_in_blok <- cur_pl_nieuw |> 
-          filter(pl_name == cur_pl & block_order == cur_block_order) |> 
-          # if recording_no has several tracks, put each track in a separate row
-          separate_rows(recording_no, sep = ", ") |> 
-          mutate(
-            duur = "",
-            audiofile = paste0("file:///Volumes/Data/Nipper/muziekweb_audio/", recording_no, ".wav"),
-            const_false = "FALSE",
-            start_sec_sinds_middernacht = -1, # "direct erna afspelen"
-            fwdtab1 = "",
-            fwdtab2 = "",
-            fwdtab3 = "",
-            speler_regel01 = componist,
-            opname_hfd_sub = blokken$vt_blok_letter[cur_block_order],
-            # opname_hfd_sub = paste0("NS", post_id[1], 
-            #                         "-", 
-            #                         blokken$vt_blok_letter[cur_block_order]),
-            speler_regel02 = titel
-          ) |> 
-          select(duur, audiofile, const_false, start_sec_sinds_middernacht, 
-                 fwdtab1, fwdtab2, fwdtab3, speler_regel01, opname_hfd_sub, speler_regel02) |> 
-          unite(col = regel, sep = "\t")
+        # + MuW audio order forms ----
+        form_pls <- vot.1 |> anti_join(vot.3_err) |> select(pl_name)
         
-        rlprg_file <- bind_rows(rlprg_file, cur_pres, cur_tracks_in_blok)
+        for (cur_form_pl in form_pls$pl_name) {
+          create_form(cur_form_pl) 
+        }
+      },
+      error = function(e1) {
+        flog.error("Segmentfout voice track PL's: %s", conditionMessage(e1), name = "nsbe_log")
+        break
       }
-      
-      cur_pl <- cur_pl |> str_replace_all(pattern = "[.]", replacement = "-")
-      
-      # + build RL-playlists ----
-      # home_radiologik_playlists <- "C:/cz_salsa/nipper/temp_rlprg/"
-      home_radiologik_playlists <- paste0(home_prop("home_radiologik_win"), "Programs/")
-      rlprg_file_name <- paste0(home_radiologik_playlists, cur_pl, ".rlprg")
-      write.table(x = rlprg_file, file = rlprg_file_name, row.names = FALSE, col.names = FALSE, 
-                  sep = "\t", quote = FALSE, fileEncoding = "UTF-8") 
-      
-      flog.info("RL-playlist toegevoegd: %s", rlprg_file_name, name = "nsbe_log")
-      
-      # + build NEW schedule ----
-      build_rl_script(cur_pl)
-      
-      # + build REPLAY schedule ----
-      cur_pl_date <- playlist2postdate(cur_pl)
-      stamped_format <- stamp("20191229_zo", orders = "%Y%0m%d_%a", quiet = T)
-      replay_sched <- paste0(stamped_format(cur_pl_date + days(7L)), str_sub(cur_pl, 12))
-      replay_pl <- get_replay_playlist(cur_pl)
-      RL_replay <- c(replay_sched, replay_pl)
-      build_rl_script(RL_replay)
-      
-      # + build host scripts ----
-      build_host_script(cur_pl_nieuw$pl_name[1])
-    }
-    
-    # + gids bijwerken ----
-    flog.info("Gids bijwerken...", name = "nsbe_log")
-    source("src/update_gids.R", encoding = "UTF-8")
-    
-    # + MuW audio order forms ----
-    form_pls <- vot.1 |> anti_join(vot.3_err) |> select(pl_name)
-    
-    for (cur_form_pl in form_pls$pl_name) {
-      create_form(cur_form_pl) 
-    }
+    )
     
     # + playlists voltooid melden ----
     pl_finshed <- vot.1 |> anti_join(vot.3_err) |> 
@@ -667,21 +668,20 @@ repeat {
                               "')")
       sql_stmt <- sprintf("update wp_nipper_main_playlists set finished = 3 where playlist_name in %s",
                           pl_failed_str)
-      
       dbExecute(conn = ns_con, statement = sql_stmt)
-      
       flog.info(paste0("Mislukt: ", pl_failed_str), name = "nsbe_log")
     }
-    
   }
   
   # exit MCL
   break
 }
 
-dbDisconnect(ns_con)
+if (typeof(ns_con) == "S4") {
+  dbDisconnect(ns_con)
+}
 
-# + start RL-scheduler ----
+# + restart RL-scheduler ----
 if (!RL_scheduler_running) {
   flog.info("RL-scheduler starten...", name = "nsbe_log")
   switch <- read_lines(file = switch_home)
