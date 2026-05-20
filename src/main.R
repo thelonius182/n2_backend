@@ -302,7 +302,7 @@ repeat {
       group_by(pl_id, block_order, block_id) |> 
       mutate(blokduur_sec = sum(length)) |> ungroup()
     
-    # + RL-sched's, PL's en draaiboeken maken ----
+    # + Bumper-spullenboel maken ----
     tryCatch(
       {
         for (cur_pl in bum.3$pl_name) {
@@ -417,7 +417,9 @@ repeat {
         }
         
         # + gids bijwerken ----
+        # >> bij skippen update_gids wel ns_tracks maken (uncomment)
         source("src/update_gids.R", encoding = "UTF-8")
+        # ns_tracks <- playlists.6 |> filter(pl_name %in% bum.3$pl_name)
         
         # + MuW audio order forms ----
         form_pls <- bum.1 |> anti_join(bum.3_err) |> select(pl_name)
@@ -427,7 +429,7 @@ repeat {
         }
       },
       error = function(e1) {
-        flog.error("Issue met bumpers: %s", conditionMessage(e1), name = "nsbe_log")
+        flog.error("Issue met BUM-generatie: %s", conditionMessage(e1), name = "nsbe_log")
         break
       }
     )
@@ -640,7 +642,7 @@ repeat {
         }
       },
       error = function(e1) {
-        flog.error("Segmentfout voice track PL's: %s", conditionMessage(e1), name = "nsbe_log")
+        flog.error("Issue met VOT-generatie: %s", conditionMessage(e1), name = "nsbe_log")
         break
       }
     )
