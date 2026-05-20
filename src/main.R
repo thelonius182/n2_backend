@@ -16,6 +16,7 @@ home_prop <- function(prop) {
 config <- read_yaml("config_nip_stu.yaml")
 rds_home <- "C:/cz_salsa/cz_exchange/"
 filter <- dplyr::filter # voorkom verwarring met stats::filter
+hms <- lubridate::hms # voorkom verwarring met hms::hms
 
 # 4 x functions only
 source(config$toolbox, encoding = "UTF-8") 
@@ -31,8 +32,7 @@ switch_home <- paste0(home_prop("home_schedulerswitch"), "nipper_msg.txt")
 RL_scheduler_running <- TRUE
 
 fa <- flog.appender(appender.file("c:/cz_salsa/Logs/ns_bum_vot.log"), name = "nsbe_log")
-flog.info("
-= = = = = NipperStudio start (versie 2025-01-26) = = = = =", name = "nsbe_log")
+flog.info("\n= = = = = NipperStudio start (versie 2026-05-20) = = = = =", name = "nsbe_log")
 
 # start MCL
 repeat { 
@@ -266,7 +266,7 @@ repeat {
     
     # + . audio = OVER ----
     bum_over <- bum.4 |> select(pl_name, title_slug, dir_transit_over) |> 
-      left_join(bf_bumpers, by = c("dir_transit_over" = "bkey")) |> 
+      left_join(bf_bumpers, by = c("dir_transit_over" = "bkey"), relationship = "many-to-many") |> 
       mutate(dir_over = paste0(bf_home, title_slug, "/", dir_transit_over, dir_transit_over_bumpers)) |> 
       select(pl_name, ns_dir = dir_over)
     
@@ -291,8 +291,14 @@ repeat {
     bum.3_err <- bum.3_err |> distinct()
     bum.3 <- bum.3 |> anti_join(bum.3_err)
     
+    if (nrow(bum.3) == 0) {
+      flog.info("Issue met bumpers - zie boven", name = "nsbe_log")
+      break
+    } 
+    
     # + Bepaal playlist lengtes ----
-    playlists.6 <- playlists.5 |> 
+    # + . and reorder block_order
+    playlists.6 <- playlists.5 |> mutate(block_order = dense_rank(block_order)) |> 
       group_by(pl_id, block_order, block_id) |> 
       mutate(blokduur_sec = sum(length)) |> ungroup()
     
@@ -421,7 +427,7 @@ repeat {
         }
       },
       error = function(e1) {
-        flog.error("Segmentfout bumper-PL's: %s", conditionMessage(e1), name = "nsbe_log")
+        flog.error("Issue met bumpers: %s", conditionMessage(e1), name = "nsbe_log")
         break
       }
     )
@@ -514,9 +520,11 @@ repeat {
                        pl_in_err, "\nZie WP-gidsinfo/nipperstudio_slugs"), name = "nsbe_log")
       vot.3 <- vot.3 |> anti_join(vot.3_err)
     }
-    
+
+      
     # + Bepaal playlist lengtes ----
-    playlists.6 <- playlists.5 |> 
+    # + . and reorder block_order
+    playlists.6 <- playlists.5 |> mutate(block_order = dense_rank(block_order)) |> 
       group_by(pl_id, block_order, block_id) |> 
       mutate(blokduur_sec = sum(length)) |> ungroup()
 
