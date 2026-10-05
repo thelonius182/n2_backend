@@ -109,6 +109,9 @@ if (exists("bum.3") && nrow(bum.3) > 0) {
         )
         
         dbExecute(ns_con, upd_stmt02)
+        
+        # notify salsa-sync job; temporarily deactivated
+        # notify_wp_salsa_post(ns_con, dsSql01$id[u1])
       }
       
       flog.info("Gids bijgewerkt: %s", cur_pl, name = "nsbe_log")
@@ -158,6 +161,9 @@ if (exists("bum.3") && nrow(bum.3) > 0) {
         flog.info("SQL: %s", upd_stmt05, name = "nsbe_log")
         
         dbExecute(ns_con, upd_stmt05)
+        
+        # notify salsa-sync job; temporarily deactivated
+        # notify_wp_salsa_post(ns_con, replay_pgm_id$min_id + r1 - 1L)
       }
       
       stamped_format <- stamp("20191229_zo", orders = "%Y%0m%d_%a", quiet = T)
@@ -249,6 +255,9 @@ if (exists("vot.3") && nrow(vot.3) > 0) {
       paste0("('", str_flatten(as.character(dsSql01[[1]]), "', '"), "')"))
     dbExecute(ns_con, upd_stmt02)
     
+    # notify salsa-sync job; temporarily deactivated
+    # notify_wp_salsa_post(ns_con, dsSql01[[1]])
+    
     flog.info("Gids origineel bijgewerkt: %s", cur_pl, name = "nsbe_log")
     
     # + replace replay-post? ---- 
@@ -296,6 +305,9 @@ if (exists("vot.3") && nrow(vot.3) > 0) {
       flog.info("SQL: %s", upd_stmt05, name = "nsbe_log")
       
       dbExecute(ns_con, upd_stmt05)
+      
+      # notify salsa-sync job; temporarily deactivated
+      # notify_wp_salsa_post(ns_con, replay_pgm_id$min_id + r1 - 1L)
     }
     
     stamped_format <- stamp("20191229_zo", orders = "%Y%0m%d_%a", quiet = T)
@@ -390,4 +402,7 @@ for (pid in ns_editor_info.1$post_id_chr) {
   flog.info("Query to update web page editor (post_meta): %s", sql_upd_pm1, name = "nsbe_log")
 
   dbExecute(ns_con, sql_upd_pm1)
+  
+  # notify salsa-sync job once; temporarily deactivated
+  # notify_wp_salsa_post(ns_con, pid)
 }

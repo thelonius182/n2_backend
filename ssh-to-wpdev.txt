@@ -1,0 +1,3 @@
+& "$env:WINDIR\Sysnative\OpenSSH\ssh.exe" -N -T -o ExitOnForwardFailure=yes -p 22 -L "127.0.0.1:3307:213.108.107.155:3306" -l "webmaster@concertzender.eu" "ftp.greenhost.nl"
+
+

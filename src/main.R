@@ -24,6 +24,10 @@ source("src/compile_schedulerscript.R", encoding = "UTF-8")
 source("src/compile_hostscript_docx.R", encoding = "UTF-8")
 source("src/shared_functions.R", encoding = "UTF-8")
 
+# notify salsa-sync job; temporarily deactivated
+# source("wp_salsa_dirty.R", encoding = "UTF-8")  # functions only
+# source("wp_salsa_notify.R", encoding = "UTF-8") # functions only
+
 host <- config$host
 home_vt_audio_mac <- home_prop("home_vt_audio_mac")
 home_vt_audio_win  <- home_prop("home_vt_audio_win") |> str_replace_all(pattern = "%20", replacement = " ")
